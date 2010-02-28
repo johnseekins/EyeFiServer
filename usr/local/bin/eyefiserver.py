@@ -554,11 +554,11 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
     snonceElement.appendChild(snonceElementText)
 
     transfermodeElement = doc.createElement("transfermode")
-    transfermodeElementText = doc.createTextNode("2")
+    transfermodeElementText = doc.createTextNode(handler.extractedElements["transfermode"])
     transfermodeElement.appendChild(transfermodeElementText)
 
     transfermodetimestampElement = doc.createElement("transfermodetimestamp")
-    transfermodetimestampElementText = doc.createTextNode("1230268824")
+    transfermodetimestampElementText = doc.createTextNode(handler.extractedElements["transfermodetimestamp"])
     transfermodetimestampElement.appendChild(transfermodetimestampElementText)
 
     upsyncallowedElement = doc.createElement("upsyncallowed")
