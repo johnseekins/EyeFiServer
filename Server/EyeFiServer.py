@@ -644,7 +644,7 @@ def setupLogging(eyeFiConfiguration):
     def emit(self, record):
       pass
   eyeFiLogger.addHandler(NullHandler())
-
+
 
 
 def commandLineOptions():
