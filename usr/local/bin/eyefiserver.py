@@ -382,6 +382,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
 
     now = datetime.now()
     uploadDir = now.strftime(self.server.config.get('EyeFiServer', 'upload_dir'))
+    uploadDir = os.path.expanduser(uploadDir) # expands ~
     if not os.path.isdir(uploadDir):
        os.makedirs(uploadDir)
        #if uid!=0 and gid!=0:
