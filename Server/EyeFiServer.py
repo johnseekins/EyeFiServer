@@ -402,7 +402,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
     
       # Figure out where I am going to put this file
       if( 'DownloadLocation' in self.server.eyeFiConfiguration['Global'] ):
-        downloadLocation = os.path.normpath(self.server.eyeFiConfiguration['Global']['DownloadLocation'])
+        downloadLocation = os.path.abspath(os.path.expanduser(self.server.eyeFiConfiguration['Global']['DownloadLocation']))
         tarFilePath = os.path.join(downloadLocation,handler.extractedElements["filename"])
       else:
         downloadLocation = os.path.join(os.curdir,"pictures")
@@ -411,7 +411,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
       # Check to see if the path exists, if it doesn't, create it
       if( os.path.exists(downloadLocation) == False ):
         eyeFiLogger.debug("Path " + downloadLocation + " does not exist. Creating it.")
-        os.mkdir(downloadLocation)
+        os.makedirs(downloadLocation, 0750)
       
       tarFile = open(tarFilePath,"wb")
       eyeFiLogger.debug("Opened file " + tarFilePath + " for binary writing")
