@@ -50,6 +50,8 @@ import subprocess
 import random
 import tempfile
 
+import datetime
+
 import EyeFiCrypto
 import EyeFiSOAPMessages
 
@@ -403,15 +405,19 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
       # Figure out where I am going to put this file
       if( 'DownloadLocation' in self.server.eyeFiConfiguration['Global'] ):
         downloadLocation = os.path.normpath(self.server.eyeFiConfiguration['Global']['DownloadLocation'])
-        tarFilePath = os.path.join(downloadLocation,handler.extractedElements["filename"])
       else:
         downloadLocation = os.path.join(os.curdir,"pictures")
-        tarFilePath = os.path.join(os.curdir,"pictures",handler.extractedElements["filename"])
+
+      # See if we have to create a sub-directory here, possibly with the current date or time
+      if ('Subdirectory' in self.server.eyeFiConfiguration['Global']):
+          downloadLocation = os.path.join( downloadLocation, datetime.datetime.now().strftime( self.server.eyeFiConfiguration['Global']['Subdirectory'] ))
+          
+      tarFilePath = os.path.join(downloadLocation,handler.extractedElements["filename"])
         
       # Check to see if the path exists, if it doesn't, create it
       if( os.path.exists(downloadLocation) == False ):
         eyeFiLogger.debug("Path " + downloadLocation + " does not exist. Creating it.")
-        os.mkdir(downloadLocation)
+        os.makedirs(downloadLocation)
       
       tarFile = open(tarFilePath,"wb")
       eyeFiLogger.debug("Opened file " + tarFilePath + " for binary writing")
