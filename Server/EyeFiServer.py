@@ -51,6 +51,7 @@ import random
 import tempfile
 
 import datetime
+import PIL 
 
 import EyeFiCrypto
 import EyeFiSOAPMessages
@@ -352,7 +353,13 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
 
     return doc.toxml(encoding="UTF-8")
 
-
+  # use PIL to get the date and time a picture was taken. 
+  def getImageDate(fn):
+      ret = {}
+      i = PIL.Image.open(fn)
+      info = i._getexif()
+      return datetime.datetime.strptime( info[306], '%Y:%m:%d %H:%M:%S')
+  
   # Handles receiving the actual photograph from the card.
   # postData will most likely contain multipart binary post data that needs to be parsed 
   def uploadPhoto(self,postData):
