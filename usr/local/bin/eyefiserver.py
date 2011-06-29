@@ -29,6 +29,7 @@ import StringIO
 import hashlib
 import binascii
 import tarfile
+import PIL
 
 import xml.sax
 from xml.sax.handler import ContentHandler
@@ -335,6 +336,12 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
 
     return doc.toxml(encoding="UTF-8")
 
+  # use PIL to get the date and time a picture was taken.
+  def getImageDate(fn):
+      ret = {}
+      i = PIL.Image.open(fn)
+      info = i._getexif()
+      return datetime.datetime.strptime( info[306], '%Y:%m:%d %H:%M:%S')
 
   # Handles receiving the actual photograph from the card.
   # postData will most likely contain multipart binary post data that needs to be parsed
