@@ -627,11 +627,6 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
       newFilename = baseFilename[0]
 
     ##
-    ## Move from temp dir to destination
-    ##
-    eyeFiLogger.info("Moving " + newFilename + " to " + uploadLocation + " ..." )
-
-    ##
 	## Okay to overwrite files?
 	##   Default is no.
 	##		
