@@ -370,7 +370,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
 
     eyeFiLogger.debug("Extracted elements: " + str(handler.extractedElements))
 
-
+    macaddress = handler.extractedElements["macaddress"]
     imageTarfileName = handler.extractedElements["filename"]
 
     #pike
@@ -381,7 +381,11 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
     #eyeFiLogger.debug("Using mode " + mode)
 
     now = datetime.now()
-    uploadDir = now.strftime(self.server.config.get('EyeFiServer', 'upload_dir'))
+    try:
+        uploadDir = now.strftime(self.server.config.get('EyeFiServer', 'upload_dir'))
+    except ConfigParser.NoSectionError:
+        uploadDir = now.strftime(self.server.config.get(macaddress, 'upload_dir'))
+
     uploadDir = os.path.expanduser(uploadDir) # expands ~
     if not os.path.isdir(uploadDir):
        os.makedirs(uploadDir)
@@ -479,11 +483,16 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
 
     eyeFiLogger.debug("Extracted elements: " + str(handler.extractedElements))
 
-    # Retrieve it from C:\Documents and Settings\<User>\Application Data\Eye-Fi\Settings.xml
+    macaddress =  handler.extractedElements["macaddress"]
+    cnonce = handler.extractedElements["cnonce"]
+    try:
+      upload_key = self.server.config.get(macaddress, 'upload_key')
+    except ConfigParser.NoSectionError:
+      upload_key = self.server.config.get('EyeFiServer', 'upload_key')
 
-    eyeFiLogger.debug("Setting Eye-Fi upload key to " + self.server.config.get('EyeFiServer', 'upload_key'))
+    eyeFiLogger.debug("Setting Eye-Fi upload key to " + upload_key)
 
-    credentialString = handler.extractedElements["macaddress"] + handler.extractedElements["cnonce"] + self.server.config.get('EyeFiServer', 'upload_key')
+    credentialString = macaddress + cnonce + upload_key
     eyeFiLogger.debug("Concatenated credential string (pre MD5): " + credentialString)
 
     # Return the binary data represented by the hexadecimal string
