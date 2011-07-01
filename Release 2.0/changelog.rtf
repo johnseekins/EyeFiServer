@@ -135,7 +135,7 @@ MAC Address Specific Options}
 \par \pard\plain \s5\ilvl4\outlinelevel4{\*\hyphen2\hyphlead2\hyphtrail2\hyphmax0}\sb240\sa120\keepn\cf0\ul\ulc0\b\kerning1\hich\af6\langfe2052\dbch\af6\ab\loch\f4\fs20\lang1033\li1008\ri0\lin1008\rin0\fi-1008{\rtlch \ltrch\loch
 DownloadLocation Option}
 \par \pard\plain \s30{\*\hyphen2\hyphlead2\hyphtrail2\hyphmax0}\sb0\sa0\cf0\kerning1\hich\af5\langfe2052\dbch\af5\loch\f5\fs20\lang1033{\rtlch \ltrch\loch\loch\f4
-If the option value starts with '$', the following text specifies a sub-folder relative to the [Global] DownloadLocation folder.  It will be relative to the [Global] DownloadLocation folder regardless if the [Global] option has been explicitly specified or not.  }
+If the option value starts with '$', the following text specifies a sub-folder relative to the [Global] DownloadLocation folder.  It will be relative to the [Global] DownloadLocation folder regardless if the [Global] option has been explicitly specified or not ('./pictures' folder).  }
 \par \pard\plain \s30{\*\hyphen2\hyphlead2\hyphtrail2\hyphmax0}\sb0\sa0\cf0\kerning1\hich\af5\langfe2052\dbch\af5\loch\f5\fs20\lang1033{\rtlch \ltrch\loch
 }
 \par \pard\plain \s30{\*\hyphen2\hyphlead2\hyphtrail2\hyphmax0}\sb0\sa0\cf0\kerning1\hich\af5\langfe2052\dbch\af5\loch\f5\fs20\lang1033{\rtlch \ltrch\loch\loch\f4
@@ -301,6 +301,10 @@ There still is the issue with INTEGRITYDIGEST verification failing intermittentl
 INTEGRITYDIGEST Verification Option }{\rtlch \ltrch\loch\loch\f4
 Section).}
 \par \pard\plain \s3\ilvl2\outlinelevel2{\*\hyphen2\hyphlead2\hyphtrail2\hyphmax0}\sb240\sa120\keepn\cf0\b\kerning1\hich\af6\langfe2052\dbch\af6\ab\loch\f4\fs20\lang1033{\rtlch \ltrch\loch
+Configuration File Keys and Options}
+\par \pard\plain \s30{\*\hyphen2\hyphlead2\hyphtrail2\hyphmax0}\sb0\sa0\cf0\kerning1\hich\af5\langfe2052\dbch\af5\loch\f5\fs20\lang1033{\rtlch \ltrch\loch\loch\f4
+To make typos less of a problem in the configuration file, it would be nice to convert them to all lower case when read into the eyeFIConfiguration object.  Then tests against the object would be less sensitive to typos.}
+\par \pard\plain \s3\ilvl2\outlinelevel2{\*\hyphen2\hyphlead2\hyphtrail2\hyphmax0}\sb240\sa120\keepn\cf0\b\kerning1\hich\af6\langfe2052\dbch\af6\ab\loch\f4\fs20\lang1033{\rtlch \ltrch\loch
 VIDEO Files and EXIF data}
 \par \pard\plain \s30{\*\hyphen2\hyphlead2\hyphtrail2\hyphmax0}\sb0\sa0\cf0\kerning1\hich\af5\langfe2052\dbch\af5\loch\f5\fs20\lang1033{\rtlch \ltrch\loch\loch\f4
 Video files don't support EXIF data as do JPG, TIFF, and most RAW file formats.  I don't do a check for whether the file type (extension) matches any particular list of supported file types yet.}
@@ -314,6 +318,10 @@ macaddress}{\rtlch \ltrch\loch\loch\f4
 }
 \par \pard\plain \s30{\*\hyphen2\hyphlead2\hyphtrail2\hyphmax0}\sb0\sa0\cf0\kerning1\hich\af5\langfe2052\dbch\af5\loch\f5\fs20\lang1033{\rtlch \ltrch\loch\loch\f4
 This current scheme is less than optimal.  I think that I should emulate the Eye-Fi Center and allow for three different upload locations based on file type.  Currently, Eye-Fi Center supports JPG, RAW, and video file types (where do TIFF files go?).}
+\par \pard\plain \s4\ilvl3\outlinelevel3{\*\hyphen2\hyphlead2\hyphtrail2\hyphmax0}\sb240\sa120\keepn\cf0\i\b\kerning1\hich\af6\langfe2052\dbch\af6\ai\ab\loch\f4\fs20\lang1033{\rtlch \ltrch\loch
+Photo File Support}
+\par \pard\plain \s30{\*\hyphen2\hyphlead2\hyphtrail2\hyphmax0}\sb0\sa0\cf0\kerning1\hich\af5\langfe2052\dbch\af5\loch\f5\fs20\lang1033{\rtlch \ltrch\loch\loch\f4
+Based on current testing it is obvious that the cards support uploading JPG. }
 \par \pard\plain \s30{\*\hyphen2\hyphlead2\hyphtrail2\hyphmax0}\sb0\sa0\cf0\kerning1\hich\af5\langfe2052\dbch\af5\loch\f5\fs20\lang1033{\rtlch \ltrch\loch
 }
 \par \pard\plain \s4\ilvl3\outlinelevel3{\*\hyphen2\hyphlead2\hyphtrail2\hyphmax0}\sb240\sa120\keepn\cf0\i\b\kerning1\hich\af6\langfe2052\dbch\af6\ai\ab\loch\f4\fs20\lang1033{\rtlch \ltrch\loch
@@ -340,7 +348,8 @@ CRW}{\rtlch \ltrch\loch\loch\f4
  }{\*\cs24\b\ab\rtlch \ltrch\loch\loch\f4
 .MPO}{\rtlch \ltrch\loch\loch\f4
  }{\*\cs24\b\ab\rtlch \ltrch\loch\loch\f4
-.ARW}
+.ARW  }{\*\cs24\b\ab\b0\ab0\rtlch \ltrch\loch\loch\f4
+According to my tests, TIFF files are considered RAW files and are uploaded by Eye-Fi Center into the folder specified for RAW file uploads.}
 \par \pard\plain \s4\ilvl3\outlinelevel3{\*\hyphen2\hyphlead2\hyphtrail2\hyphmax0}\sb240\sa120\keepn\cf0\i\b\kerning1\hich\af6\langfe2052\dbch\af6\ai\ab\loch\f4\fs20\lang1033{\*\cs24\b\ab\rtlch \ltrch\loch
 Video Type Type Support}
 \par \pard\plain \s30{\*\hyphen2\hyphlead2\hyphtrail2\hyphmax0}\sb0\sa0\cf0\kerning1\hich\af5\langfe2052\dbch\af5\loch\f5\fs20\lang1033{\rtlch \ltrch\loch\loch\f4
@@ -349,4 +358,38 @@ According to the Eye-Fi website (http://support.eye.fi/eye-fi-setup/uploading-ph
 }
 \par \pard\plain \s30{\*\hyphen2\hyphlead2\hyphtrail2\hyphmax0}\sb0\sa0\cf0\kerning1\hich\af5\langfe2052\dbch\af5\loch\f5\fs20\lang1033{\rtlch \ltrch\loch\loch\f4
 The upload support of .mts files is limited by the fact that the card only uploads the stream file (.mts) and not the supporting files for the CLIPINFO and PLAYLIST folders as well.}
+\par \pard\plain \s4\ilvl3\outlinelevel3{\*\hyphen2\hyphlead2\hyphtrail2\hyphmax0}\sb240\sa120\keepn\cf0\i\b\kerning1\hich\af6\langfe2052\dbch\af6\ai\ab\loch\f4\fs20\lang1033{\rtlch \ltrch\loch
+Proposed Features}
+\par \pard\plain \s30{\*\hyphen2\hyphlead2\hyphtrail2\hyphmax0}\sb0\sa0\cf0\kerning1\hich\af5\langfe2052\dbch\af5\loch\f5\fs20\lang1033{\rtlch \ltrch\loch
+}
+\par \pard\plain \s30{\*\hyphen2\hyphlead2\hyphtrail2\hyphmax0}\sb0\sa0\cf0\kerning1\hich\af5\langfe2052\dbch\af5\loch\f5\fs20\lang1033{\rtlch \ltrch\loch\loch\f4
+Based on this research, I will be implementing three option sets in the config .ini file with all three sets available on a MAC address basis:}
+\par \pard\plain \s30{\*\hyphen2\hyphlead2\hyphtrail2\hyphmax0}\sb0\sa0\cf0\kerning1\hich\af5\langfe2052\dbch\af5\loch\f5\fs20\lang1033{\rtlch \ltrch\loch
+}
+\par \pard\plain \s30{\*\hyphen2\hyphlead2\hyphtrail2\hyphmax0}\sb0\sa0\cf0\kerning1\hich\af5\langfe2052\dbch\af5\loch\f5\fs20\lang1033{\rtlch \ltrch\loch\loch\f4
+1) AddSubFolder/RenameFile for JPGs\tab \tab \tab 'JPG-AddSubFolder' / 'JPG-RenameFile'}
+\par \pard\plain \s30{\*\hyphen2\hyphlead2\hyphtrail2\hyphmax0}\sb0\sa0\cf0\kerning1\hich\af5\langfe2052\dbch\af5\loch\f5\fs20\lang1033{\rtlch \ltrch\loch\loch\f4
+This would be implemented the same as the current version.}
+\par \pard\plain \s30{\*\hyphen2\hyphlead2\hyphtrail2\hyphmax0}\sb0\sa0\cf0\kerning1\hich\af5\langfe2052\dbch\af5\loch\f5\fs20\lang1033{\rtlch \ltrch\loch
+}
+\par \pard\plain \s30{\*\hyphen2\hyphlead2\hyphtrail2\hyphmax0}\sb0\sa0\cf0\kerning1\hich\af5\langfe2052\dbch\af5\loch\f5\fs20\lang1033{\rtlch \ltrch\loch\loch\f4
+2) AddSubFolder/RenameFile for RAW\tab \tab \tab 'RAW-AddSubFolder' / 'RAW-RenameFile'}
+\par \pard\plain \s30{\*\hyphen2\hyphlead2\hyphtrail2\hyphmax0}\sb0\sa0\cf0\kerning1\hich\af5\langfe2052\dbch\af5\loch\f5\fs20\lang1033{\rtlch \ltrch\loch\loch\f4
+This would likely be implemented the same as the current version, except I don't have examples of all the different RAW files to verify support of EXIF data extraction.}
+\par \pard\plain \s30{\*\hyphen2\hyphlead2\hyphtrail2\hyphmax0}\sb0\sa0\cf0\kerning1\hich\af5\langfe2052\dbch\af5\loch\f5\fs20\lang1033{\rtlch \ltrch\loch
+}
+\par \pard\plain \s30{\*\hyphen2\hyphlead2\hyphtrail2\hyphmax0}\sb0\sa0\cf0\kerning1\hich\af5\langfe2052\dbch\af5\loch\f5\fs20\lang1033{\rtlch \ltrch\loch\loch\f4
+3) AddSubFolder/RenameFile for video\tab \tab \tab 'Video-AddSubFolder' / 'Video-RenameFile'}
+\par \pard\plain \s30{\*\hyphen2\hyphlead2\hyphtrail2\hyphmax0}\sb0\sa0\cf0\kerning1\hich\af5\langfe2052\dbch\af5\loch\f5\fs20\lang1033{\rtlch \ltrch\loch\loch\f4
+This would be an addition to the current version where I only support uploading to the folder specified by the 'Global' and '<}{\i\ai\rtlch \ltrch\loch\loch\f4
+macaddress}{\rtlch \ltrch\loch\loch\f4
+>' DownloadLocation options.  }
+\par \pard\plain \s30{\*\hyphen2\hyphlead2\hyphtrail2\hyphmax0}\sb0\sa0\cf0\kerning1\hich\af5\langfe2052\dbch\af5\loch\f5\fs20\lang1033{\rtlch \ltrch\loch
+}
+\par \pard\plain \s30{\*\hyphen2\hyphlead2\hyphtrail2\hyphmax0}\sb0\sa0\cf0\kerning1\hich\af5\langfe2052\dbch\af5\loch\f5\fs20\lang1033{\rtlch \ltrch\loch\loch\f4
+There could be no EXIF data extraction support, so there would be limited template support.  I could use the upload date (the capture time would not be available) to resolve the datetime template fields.  Other current EXIF data, i.e. 'Image Make' and 'Image Model' would not be substituted in the templates.}
+\par \pard\plain \s30{\*\hyphen2\hyphlead2\hyphtrail2\hyphmax0}\sb0\sa0\cf0\kerning1\hich\af5\langfe2052\dbch\af5\loch\f5\fs20\lang1033{\rtlch \ltrch\loch
+}
+\par \pard\plain \s30{\*\hyphen2\hyphlead2\hyphtrail2\hyphmax0}\sb0\sa0\cf0\kerning1\hich\af5\langfe2052\dbch\af5\loch\f5\fs20\lang1033{\rtlch \ltrch\loch
+}
 \par }
