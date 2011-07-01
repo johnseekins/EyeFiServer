@@ -104,18 +104,14 @@ optionsParser = optparse.OptionParser()
 ##    
 ##
 
-class EyeFiEXIFdata():
+class EyeFiEXIFdata(object):
 
-  ##
-  ## date_time
-  ##   extracted DateTimeOriginal EXIF and converted (to datetime object)
- 
   date_time = None
   ##
   ## fields
   ##   a list of list 'pairs' of template fields and the EXIF tag name associated with it
-   
   fields = [['make', 'Image Make'], ['model', 'Image Model']]
+
   ## 
   ## subsitutions
   ##   a list of dictionarys with substituion fields and the appropriately extracted EXIF data
@@ -123,8 +119,11 @@ class EyeFiEXIFdata():
   rules = []
 
   def __init__(self, fullImageFilePath):
-    ## EXIF.py does all the heavy lifting here
+    ##
+    ## date_time
+    ##   extracted DateTimeOriginal EXIF and converted (to datetime object)
 
+    ## EXIF.py does all the heavy lifting here
     try:
       tempImageFile = open(fullImageFilePath, 'rb')
     except IOError:
@@ -171,19 +170,19 @@ class EyeFiEXIFdata():
       substitution = dict()
       field = self.fields[indx][0]
       try:
-        eyeFiLogger.debug( "Looking up: " + self.fields[indx][1] + '...')
         exifData = str(tempImageEXIFTags[self.fields[indx][1]])
       except KeyError:
         eyeFiLogger.error( "EXIF data '" + self.fields[indx][1] + "' not supported.")
         return
 
-      eyeFiLogger.debug("...Found: " + exifData )
       ## Create new dictionary object with substitution rule
       substitution[field] = exifData
       ## Add new rule to list of rules
-      self.rules.append( substitution ) 
+      self.rules.append( substitution )
 
-      
+  def purge( self ):
+	del self.rules[:]
+
 # Eye Fi XML SAX ContentHandler
 class EyeFiContentHandler(ContentHandler):
 
@@ -593,39 +592,53 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
       exifData = EyeFiEXIFdata(tempPathToImage)
     except:
       ## Some exception thrown
+      exifData.purge()
       return False
 
-    if( exifData.date_time == None):
-      ## No EXIFdata found in file.  Is this a valid image file?
-      eyeFiLogger.info( "Is this a valid image file?")
-      return False
-
-    ## Build path with baseFolder property + relativePath
     uploadLocation = self.server.uploadPaths[macaddress]
     if( len(uploadLocation) == 0):
       uploadLocation = self.server.baseFolder
 
-    ## Custom sub-folder based on template and extracted EXIF 
-    addSubFolder = buildFromTemplate(self.server.eyeFiConfiguration, macaddress,'AddSubFolder',exifData)
-    if( addSubFolder != None ):
-      uploadLocation = os.path.join(uploadLocation,addSubFolder)
-
-    # Check to see if the path exists, if it doesn't, create it
-    if( os.path.exists(uploadLocation) == False ):
-      eyeFiLogger.debug("Path " + uploadLocation + " does not exist. Creating it.")
-      try:
-        os.makedirs(uploadLocation)
-      except:
-        eyeFiLogger.error( "Unable to create folder '" + uploadLocation +"'")
-        return False
-
-    ## Rename File?
     baseFilename = string.split( imageNames[0], '.')
     fileType = baseFilename[1]
-    newFilename = buildFromTemplate(self.server.eyeFiConfiguration, macaddress,'RenameFile',exifData)
-    if( newFilename == None ):
-      newFilename = baseFilename[0]
+    newFilename = baseFilename[0]
 
+    if( exifData.date_time == None):
+      ## No EXIFdata found in file.  Is this a valid image file? Could be unsupported EXIF signature or
+      ##  is a video file.  
+      ## At this point, I'm will ignore all templates in the config .ini file.  So the 'AddSubFolder' and
+      ##  'RenameFile' options will be ignored for this type of file
+      eyeFiLogger.info( "Is this a valid image file?")
+
+    else:
+      ## Build path with baseFolder property + relativePath
+      ## Custom sub-folder based on template and extracted EXIF 
+      addSubFolder = buildFromTemplate(self.server.eyeFiConfiguration, macaddress,'AddSubFolder',exifData)
+      if( addSubFolder != None ):
+        uploadLocation = os.path.join(uploadLocation,addSubFolder)
+
+      # Check to see if the path exists, if it doesn't, create it
+      if( os.path.exists(uploadLocation) == False ):
+        eyeFiLogger.debug("Path " + uploadLocation + " does not exist. Creating it.")
+        try:
+          os.makedirs(uploadLocation)
+        except:
+          eyeFiLogger.error( "Unable to create folder '" + uploadLocation +"'")
+          exifData.purge()
+          return False
+
+      ## Rename File?
+      newFilename = buildFromTemplate(self.server.eyeFiConfiguration, macaddress,'RenameFile',exifData)
+      if( newFilename == None ):
+        newFilename = baseFilename[0]
+
+    ## Back to 'Common Ground'
+    ##   If EXIF supported then, 'AddSubfolder' and 'RenameFile' options have been resolved
+    ##     uploadLocation has been expanded to include resolved 'AddSubfolder' path and
+    ##     newFilename is set
+    ##   Else, if EXIF data not supported
+    ##     uploadLocation is set to 'Global' + 'macaddress' options and
+    ##     newFilename is set to original uploaded filenaem
     ##
 	## Okay to overwrite files?
 	##   Default is no.
@@ -653,6 +666,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         uploadFilePath = os.path.join( uploadLocation, filenameTemplate.format( sequence=nnn ) )
       else:
         eyeFiLogger.error("Unable to copy file to " + uploadLocation + " .  No unique filename found.")
+        exifData.purge()
         return False
      
     eyeFiLogger.debug( "Moving " + tempPathToImage + " to " + uploadFilePath)
@@ -660,8 +674,10 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
       shutil.move(tempPathToImage, uploadFilePath)
     except:
       eyeFiLogger.error("Unable to move temp file to " + uploadFilePath + " .  File system error" )
+      exifData.purge()
       return False
 
+    exifData.purge()
     return True
 
   # Handles receiving the actual photograph from the card.
