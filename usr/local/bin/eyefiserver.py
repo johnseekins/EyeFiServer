@@ -45,6 +45,7 @@ import logging
 from datetime import datetime
 import ConfigParser
 
+import eyeficrypto
 
 """
 General architecture notes
@@ -371,6 +372,10 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
     eyeFiLogger.debug("Extracted elements: " + str(handler.extractedElements))
 
     macaddress = handler.extractedElements["macaddress"]
+    try:
+      upload_key = self.server.config.get(macaddress, 'upload_key')
+    except ConfigParser.NoSectionError:
+      upload_key = self.server.config.get('EyeFiServer', 'upload_key')
     imageTarfileName = handler.extractedElements["filename"]
 
     #pike
@@ -379,6 +384,33 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
     #mode = self.server.config.get('EyeFiServer', 'upload_mode')
     #eyeFiLogger.debug("Using uid/gid %d/%d"%(uid, gid))
     #eyeFiLogger.debug("Using mode " + mode)
+
+    responseElementText = "true"
+
+    try:
+        integrity_verification = self.server.config.getboolean('EyeFiServer', 'integrity_verification')
+    except ConfigParser.NoOptionError:
+        integrity_verification = False
+
+    if integrity_verification:
+        # Write the newly uploaded file to memory
+        untrustedFile = StringIO.StringIO()
+        untrustedFile.write(form['FILENAME'][0])
+
+        # Perform an integrity check on the file before writing it out
+        eyeFiCrypto = eyeficrypto.EyeFiCrypto()
+        verifiedDigest = eyeFiCrypto.calculateIntegrityDigest(untrustedFile.getvalue(), upload_key)
+        try:
+          unverifiedDigest = form['INTEGRITYDIGEST'][0]
+        except KeyError:
+          eyeFiLogger.error("No INTEGRITYDIGEST received.")
+        else:
+          eyeFiLogger.debug("Comparing my digest [" + verifiedDigest + "] to card's digest [" + unverifiedDigest  + "].")
+          if verifiedDigest == unverifiedDigest:
+            eyeFiLogger.debug("INTEGRITYDIGEST passes test.")
+          else:
+            eyeFiLogger.error("Digests do not match. Check upload_key setting in .conf file.")
+            responseElementText = "false"
 
     now = datetime.now()
     try:
@@ -431,7 +463,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
 
     uploadPhotoResponseElement = doc.createElement("UploadPhotoResponse")
     successElement = doc.createElement("success")
-    successElementText = doc.createTextNode("true")
+    successElementText = doc.createTextNode(responseElementText)
 
     successElement.appendChild(successElementText)
     uploadPhotoResponseElement.appendChild(successElement)
