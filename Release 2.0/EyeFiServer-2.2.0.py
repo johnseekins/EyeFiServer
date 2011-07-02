@@ -1,5 +1,5 @@
 """
-* EyeFi Python Server v2.1.1
+* EyeFi Python Server v2.2.0
 *
 * Copyright (c) 2009, Jeffrey Tchang
 *
@@ -180,9 +180,57 @@ class EyeFiEXIFdata(object):
       ## Add new rule to list of rules
       self.rules.append( substitution )
 
-  def purge( self ):
+  def flush( self ):
 	del self.rules[:]
+	
+##
+##
+class EyeFiFile(object):
 
+  fileName = ""
+  fileType = ""
+	
+  rawTypes = ["CRW", "CR2", "NEF", "NRW", "DNG", "PTX", "PEF", "RAW", "RW2", "MPO", "ARW"]
+  videoTypes = ["MPG", "MP4", "MTS", "MOV", "AVI", "WMV", "FLV"] 
+
+  def __init__(self, filename, pathname ):
+    name = string.split( filename, '.')
+
+    self.fileName = name[0]
+    self.fileType = name[1]
+	
+    if self.fileType == 'JPG':
+      exifSupported = True
+      self.optionPrefix = 'JPG-'
+    elif self.fileType in rawTypes:
+      exifSupported = True
+      self.optionPrefix = 'RAW-'
+    elif self.fileType in videoTypes:
+      exifSupported = False
+      self.optionPrefix = 'Video-'
+    else:
+      ## Unrecognized file type
+      raise TypeError
+	
+    ## If EXIF supported, then get it
+    ##
+    self.exifData = EyeFiEXIFdata()
+    if exifSupported:
+      fullPath = os.path.join( pathname, filename )
+      self.exidData.extract( fullPath )
+    else:
+      ##
+      self.exifData.date_time = today()
+
+  def addSubFolder( eyeFiConfiguration, macaddress):
+    ## Build path with baseFolder property + relativePath
+    ## Custom sub-folder based on template and extracted EXIF 
+    return buildFromTemplate(eyeFiConfiguration, macaddress, self.optionPrefix + 'AddSubFolder', self.exifData)
+
+  def renameFile( eyeFiConfiguration, macaddress):
+    return buildFromTemplate(eyeFiConfiguration, macaddress, self.optionPrefix + 'RenameFile', self.exifData)
+    
+	 
 # Eye Fi XML SAX ContentHandler
 class EyeFiContentHandler(ContentHandler):
 
@@ -256,8 +304,8 @@ class EyeFiServer(SocketServer.ThreadingMixIn, BaseHTTPServer.HTTPServer):
     ## Build 'base' folder from 'Global' section option, so we don't have to do it
     ##   'on the fly' with each upload
     ##
-    if( 'DownloadLocation' in self.eyeFiConfiguration['Global'] ):
-      folder = os.path.normpath(self.eyeFiConfiguration['Global']['DownloadLocation'])
+    if( 'UploadLocation' in self.eyeFiConfiguration['Global'] ):
+      folder = os.path.normpath(self.eyeFiConfiguration['Global']['UploadLocation'])
     else:
       folder = os.path.join(os.curdir,"pictures")  ## Default to './pictures' folder [BSD] (.\pictures directory [Win])
 
@@ -285,8 +333,8 @@ class EyeFiServer(SocketServer.ThreadingMixIn, BaseHTTPServer.HTTPServer):
     folder = ""
     for macAddress in self.eyeFiConfiguration:
       if( macAddress != 'Global'):
-        if( 'DownloadLocation' in self.eyeFiConfiguration[macAddress] ):
-          dllOption = self.eyeFiConfiguration[macAddress]['DownloadLocation']
+        if( 'UploadLocation' in self.eyeFiConfiguration[macAddress] ):
+          dllOption = self.eyeFiConfiguration[macAddress]['UploadLocation']
           if( dllOption[0] == '$'):
             if len(dllOption) == 1:			## '$' alone specifies MAC address as a string for folder name
               folder = macAddress
@@ -584,36 +632,24 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
       return False
 
     ##
-    ## Get EXIF data from extracted image file and put it in an object
-    ##
-    ##
-    tempPathToImage = os.path.join(self.server.tempUploadFolder,imageNames[0])
-    try:
-      exifData = EyeFiEXIFdata(tempPathToImage)
-    except:
-      ## Some exception thrown
-      exifData.purge()
-      return False
+    ## Build a uploaded file object that contains filename information as well
+    ##   as extracted or simulated EXIF data
+    uploadFile = EyeFiFile( imageNames[0], self.server.tempUploadFolder )
 
     uploadLocation = self.server.uploadPaths[macaddress]
     if( len(uploadLocation) == 0):
       uploadLocation = self.server.baseFolder
 
-    baseFilename = string.split( imageNames[0], '.')
-    fileType = baseFilename[1]
-    newFilename = baseFilename[0]
+    newFilename = uploadFile.fileName
 
-    if( exifData.date_time == None):
-      ## No EXIFdata found in file.  Is this a valid image file? Could be unsupported EXIF signature or
-      ##  is a video file.  
-      ## At this point, I'm will ignore all templates in the config .ini file.  So the 'AddSubFolder' and
-      ##  'RenameFile' options will be ignored for this type of file
+    if( upoadFile.exifData.date_time == None ):
+      ## No EXIFdata found in file.  Is this a valid image file? 
       eyeFiLogger.info( "Is this a valid image file?")
-
+      ## Now, exit routine "gracefully"
+      uploadFile.purge()
+      return
     else:
-      ## Build path with baseFolder property + relativePath
-      ## Custom sub-folder based on template and extracted EXIF 
-      addSubFolder = buildFromTemplate(self.server.eyeFiConfiguration, macaddress,'AddSubFolder',exifData)
+      addSubFolder = uploadFile.addSubFolder( self.server.eyeFiConfiguration, macaddress )
       if( addSubFolder != None ):
         uploadLocation = os.path.join(uploadLocation,addSubFolder)
 
@@ -624,22 +660,14 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
           os.makedirs(uploadLocation)
         except:
           eyeFiLogger.error( "Unable to create folder '" + uploadLocation +"'")
-          exifData.purge()
+          exifData.flush()
           return False
 
       ## Rename File?
       newFilename = buildFromTemplate(self.server.eyeFiConfiguration, macaddress,'RenameFile',exifData)
       if( newFilename == None ):
-        newFilename = baseFilename[0]
+        newFilename = uploadFile.filename
 
-    ## Back to 'Common Ground'
-    ##   If EXIF supported then, 'AddSubfolder' and 'RenameFile' options have been resolved
-    ##     uploadLocation has been expanded to include resolved 'AddSubfolder' path and
-    ##     newFilename is set
-    ##   Else, if EXIF data not supported
-    ##     uploadLocation is set to 'Global' + 'macaddress' options and
-    ##     newFilename is set to original uploaded filenaem
-    ##
 	## Okay to overwrite files?
 	##   Default is no.
 	##		
@@ -666,7 +694,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         uploadFilePath = os.path.join( uploadLocation, filenameTemplate.format( sequence=nnn ) )
       else:
         eyeFiLogger.error("Unable to copy file to " + uploadLocation + " .  No unique filename found.")
-        exifData.purge()
+        exifData.flush()
         return False
      
     eyeFiLogger.debug( "Moving " + tempPathToImage + " to " + uploadFilePath)
@@ -674,10 +702,10 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
       shutil.move(tempPathToImage, uploadFilePath)
     except:
       eyeFiLogger.error("Unable to move temp file to " + uploadFilePath + " .  File system error" )
-      exifData.purge()
+      exifData.flush()
       return False
 
-    exifData.purge()
+    exifData.flush()
     return True
 
   # Handles receiving the actual photograph from the card.
@@ -758,7 +786,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         ## TODO:  Did I break this????
         if( 'ExecuteOnUpload' in self.server.eyeFiConfiguration['Global'] ):
           command = self.server.eyeFiConfiguration['Global']['ExecuteOnUpload']
-          imagePath = os.path.join(downloadLocation,imageNames[0])      
+          imagePath = os.path.join(uploadLocation,imageNames[0])      
           eyeFiLogger.debug("Executing command \"" + command + " " + imagePath + "\"")
           pid = subprocess.Popen([command, imagePath]).pid
       
@@ -1068,6 +1096,10 @@ def buildFromTemplate(eyeFiConfiguration, macaddress, option, EXIFdata):
 ##
 def testTemplates( eyeFiConfiguration, options):
 
+  optionList =["JPG-AddSubFolder" , "JPG-RenameFile",
+               "RAW-AddSubFolder" , "RAW-RenameFile",
+               "Video-AddSubFolder" , "Video-RenameFile"]
+
   if( options.imagefile != None ):
     eyeFiLogger.info("Specified example image file: " + options.imagefile)
     ## Does example file exist?
@@ -1077,20 +1109,17 @@ def testTemplates( eyeFiConfiguration, options):
       ## If date_time data is valid then extraction went okay
       if( imageEXIFdata.date_time != None ):
 	    ## Crawl configuration options for templates
-        for configKey in eyeFiConfiguration:
+        for configKey in eyeFiConfiguration:  ## Iterate through all the configuration keys
           if( configKey != 'Global'):
-            convertedTemplate = buildFromTemplate( eyeFiConfiguration, configKey, 'AddSubFolder', imageEXIFdata )
-            ## At this point the only keys are 'Global' and macaddresses, but what if ...
-            if( convertedTemplate != None ) :  ## Returns None if KeyError on 'AddSubFolder'
-              eyeFiLogger.info( "macaddress: " + configKey + ":  [AddSubfolder] Template '" + eyeFiConfiguration[configKey]['AddSubFolder'] + "' resolves to " + str(convertedTemplate))
-            else:
-              eyeFiLogger.info( "No 'AddSubFolder' option found for macaddress: " + configKey )
-            convertedTemplate = buildFromTemplate( eyeFiConfiguration, configKey, 'RenameFile', imageEXIFdata )
-            ## At this point the only keys are 'Global' and macaddresses, but what if ...
-            if( convertedTemplate != None ) :  ## Returns None if KeyError on 'RenameFile'
-              eyeFiLogger.info( "macaddress: " + configKey + ":  [RenameFile] Template '" + eyeFiConfiguration[configKey]['RenameFile'] + "' resolves to " + str(convertedTemplate))
-            else:
-              eyeFiLogger.info( "No 'RenameFile' option found for macaddress: " + configKey)
+            ## must be a macaddress key
+            ## now there are six options with possible templates to test
+            ##   Is there a better way, perhaps, iterate through a list of option strings
+            for option in optionList:
+              convertedTemplate = buildFromTemplate( eyeFiConfiguration, configKey, option, imageEXIFdata )
+              if( convertedTemplate != None ) :  ## Returns None if KeyError on option
+                eyeFiLogger.info( "macaddress: " + configKey + ":  [" + option + "] Template '" + eyeFiConfiguration[configKey][option] + "' resolves to " + str(convertedTemplate))
+              else:
+                eyeFiLogger.info( "No '" + option + "' option found for macaddress: " + configKey )
         exit(0)
       else:
         ## No EXIF data in example file
