@@ -18,7 +18,6 @@
 * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 
-import string
 from string import Template
 import cgi
 import time
@@ -34,30 +33,29 @@ import StringIO
 
 import hashlib
 import binascii
-import select 
+#import select 
 import tarfile
 
 import xml.sax
 from xml.sax.handler import ContentHandler 
 import xml.dom.minidom
 
-from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
+from BaseHTTPServer import BaseHTTPRequestHandler#, HTTPServer
 import BaseHTTPServer
 
 import SocketServer
 
 import logging
 import optparse
-import ConfigParser
+#import ConfigParser
 
 import subprocess
 import random
-import tempfile
 
 import EXIF
 
 import EyeFiCrypto
-import EyeFiSOAPMessages
+#import EyeFiSOAPMessages
 
 """
 General Architecture Notes
@@ -104,7 +102,7 @@ optionsParser = optparse.OptionParser()
 ##    
 ##
 
-class EyeFiEXIFdata(object):
+class EyeFiEXIFdata():
 
   date_time = None
   ##
@@ -150,9 +148,9 @@ class EyeFiEXIFdata(object):
     ## Build 'standard' Python Date
     ##
     eyeFiLogger.debug( imageEXIFDateTime )
-    tempDTList = string.split( imageEXIFDateTime, ' ' ) ## Split string at the 'space'
-    dateList = string.split( tempDTList[0], ':')        ## Split out at the ':'
-    timeList = string.split( tempDTList[1], ':')        ## Split out at the ':'
+    tempDTList = imageEXIFDateTime.split(' ')  ## Split string at the 'space'
+    dateList = tempDTList[0].split(':')        ## Split out at the ':'
+    timeList = tempDTList[1].split(':')        ## Split out at the ':'
     try:
       self.date_time = datetime.datetime( int(dateList[0]), int(dateList[1]), int(dateList[2]),
                                           int(timeList[0]), int(timeList[1]), int(timeList[2]) )
@@ -194,7 +192,7 @@ class EyeFiFile(object):
   videoTypes = ["MPG", "MP4", "MTS", "MOV", "AVI", "WMV", "FLV"] 
 
   def __init__(self, filename, pathname ):
-    name = string.split( filename, '.')
+    name = filename.split('.')
 
     self.fileName = name[0]
     self.fileType = name[1]
@@ -214,20 +212,20 @@ class EyeFiFile(object):
 
     ## If EXIF supported, then get it
     ##
-    self.exifData = EyeFiEXIFdata()
     if exifSupported:
       fullPath = os.path.join( pathname, filename )
-      self.exifData.extract( fullPath )
+      self.exifData = EyeFiEXIFdata(fullPath)
     else:
       ##
-      self.exifData.date_time = today()
+      # FIXME
+      self.exifData.date_time = datetime.date.today()
 
-  def addSubFolder( eyeFiConfiguration, macaddress):
+  def addSubFolder( self, eyeFiConfiguration, macaddress):
     ## Build path with baseFolder property + relativePath
     ## Custom sub-folder based on template and extracted EXIF 
     return buildFromTemplate(eyeFiConfiguration, macaddress, self.optionPrefix + 'AddSubFolder', self.exifData)
 
-  def renameFile( eyeFiConfiguration, macaddress):
+  def renameFile( self, eyeFiConfiguration, macaddress):
     return buildFromTemplate(eyeFiConfiguration, macaddress, self.optionPrefix + 'RenameFile', self.exifData)
     
  
@@ -297,7 +295,7 @@ class EyeFiServer(SocketServer.ThreadingMixIn, BaseHTTPServer.HTTPServer):
     ## INTEGRITYDIGEST Verification Flag
     ##   It is on by default
     if( 'IDVerification' in self.eyeFiConfiguration['Global'] ):
-      strIDV = string.upper(self.eyeFiConfiguration['Global']['IDVerification']) 
+      strIDV = self.eyeFiConfiguration['Global']['IDVerification'].upper() 
       IDVerification = (strIDV == 'ON')
 
     ##
@@ -642,12 +640,12 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
 
     newFilename = uploadFile.fileName
 
-    if( upoadFile.exifData.date_time == None ):
+    if( uploadFile.exifData.date_time == None ):
       ## No EXIFdata found in file.  Is this a valid image file? 
       eyeFiLogger.info( "Is this a valid image file?")
       ## Now, exit routine "gracefully"
       uploadFile.purge()
-      return
+      return # None: FIXME
     else:
       addSubFolder = uploadFile.addSubFolder( self.server.eyeFiConfiguration, macaddress )
       if( addSubFolder != None ):
@@ -673,8 +671,8 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
     ##
     boolOverwrite = False
     if( 'Overwrite' in self.server.eyeFiConfiguration['Global'] ):
-      strOverwrite = string.upper(self.server.eyeFiConfiguration['Global']['Overwrite'])
-      if( strOverwite == 'TRUE' ):
+      strOverwrite = self.server.eyeFiConfiguration['Global']['Overwrite'].upper()
+      if( strOverwrite == 'TRUE' ):
         eyeFiLogger.debug( "Overwrite is On")
         boolOverwrite = True
 
@@ -743,7 +741,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
     soapEnvelope = form['SOAPENVELOPE'][0]
     eyeFiLogger.debug("SOAPENVELOPE: " + soapEnvelope)
     handler = EyeFiContentHandler()
-    parser = xml.sax.parseString(soapEnvelope,handler)
+    xml.sax.parseString(soapEnvelope,handler)
 
     eyeFiLogger.debug("Extracted elements: " + str(handler.extractedElements))
 
@@ -754,7 +752,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         
     # Perform an integrity check on the file before writing it out
     eyeFiCrypto = EyeFiCrypto.EyeFiCrypto()
-    macAddress = handler.extractedElements["macaddress"];
+    macAddress = handler.extractedElements["macaddress"]
 
     verifiedDigest = eyeFiCrypto.calculateIntegrityDigest(untrustedFile.getvalue(),
                                                           self.server.eyeFiConfiguration[macAddress]['UploadKey'])
@@ -832,13 +830,13 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
   # server should allow files with the given filesignature to be uploaded.
   def getPhotoStatus(self,postData):
     handler = EyeFiContentHandler()
-    parser = xml.sax.parseString(postData,handler)
+    xml.sax.parseString(postData,handler)
    
     eyeFiLogger.debug("Extracted elements: " + str(handler.extractedElements))
     
-    macAddress = handler.extractedElements["macaddress"];
+    macAddress = handler.extractedElements["macaddress"]
     # Calculate the credential string that I am expecting the card to send to me
-    credentialString = handler.extractedElements["macaddress"] + self.server.eyeFiConfiguration[macAddress]['UploadKey'] + self.server.serverNonce;
+    credentialString = handler.extractedElements["macaddress"] + self.server.eyeFiConfiguration[macAddress]['UploadKey'] + self.server.serverNonce
     eyeFiLogger.debug("Concatenated credential string (pre MD5): " + credentialString)
     
     binaryCredentialString = binascii.unhexlify(credentialString)
@@ -885,11 +883,11 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
   def startSession(self, postData):  
     eyeFiLogger.debug("Delegating the XML parsing of startSession postData to EyeFiContentHandler()")
     handler = EyeFiContentHandler()
-    parser = xml.sax.parseString(postData,handler)
+    xml.sax.parseString(postData,handler)
     
     eyeFiLogger.debug("Extracted elements: " + str(handler.extractedElements))
     
-    macAddress = handler.extractedElements["macaddress"];
+    macAddress = handler.extractedElements["macaddress"]
     # Retrieve it from
     #    C:\Documents and Settings\<User>\Application Data\Eye-Fi\Settings.xml on WinOS (has this changed???)
     # or
@@ -897,7 +895,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
     eyeFiUploadKey = self.server.eyeFiConfiguration[macAddress]['UploadKey']
     eyeFiLogger.debug("Setting Eye-Fi upload key to " + eyeFiUploadKey)
     
-    credentialString = handler.extractedElements["macaddress"] + handler.extractedElements["cnonce"] + eyeFiUploadKey;
+    credentialString = handler.extractedElements["macaddress"] + handler.extractedElements["cnonce"] + eyeFiUploadKey
     eyeFiLogger.debug("Concatenated credential string (pre MD5): " + credentialString)
 
     # Return the binary data represented by the hexadecimal string
