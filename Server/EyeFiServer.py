@@ -217,7 +217,7 @@ class EyeFiFile(object):
     self.exifData = EyeFiEXIFdata()
     if exifSupported:
       fullPath = os.path.join( pathname, filename )
-      self.exidData.extract( fullPath )
+      self.exifData.extract( fullPath )
     else:
       ##
       self.exifData.date_time = today()
@@ -1123,7 +1123,7 @@ def testTemplates( eyeFiConfiguration, options):
         exit(0)
       else:
         ## No EXIF data in example file
-        eyeLogger.error("No EXIF data found in file: " + options.imageFile)
+        eyeFiLogger.error("No EXIF data found in file: " + options.imageFile)
         exit(-1)
     else:
 	  ## No, exit with error
