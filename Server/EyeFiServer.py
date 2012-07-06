@@ -99,8 +99,8 @@ optionsParser = optparse.OptionParser()
 ##
 ##  Extracts EXIF data from the specified file
 ##  
-##  	Note: it only stores the EXIF data that is supported by the EyeFi server.  Supported
-##			  data is specified in the 
+##  Note: it only stores the EXIF data that is supported by the EyeFi server.  Supported
+##  data is specified in the 
 ##    
 ##
 
@@ -137,35 +137,35 @@ class EyeFiEXIFdata(object):
       eyeFiLogger.error( "Error processing image file.")
       raise
 
-	##
-	## tempImageDate is in format:  YYYY:MM:DD HH:MM:SS
-	##
+    ##
+    ## tempImageDate is in format:  YYYY:MM:DD HH:MM:SS
+    ##
     try:
       imageEXIFDateTime = str(tempImageEXIFTags['EXIF DateTimeOriginal'])
     except KeyError:
       ## If this exception thrown, then the file is not standard, since all EXIF files should have 'EXIF DateTimeOriginal' field
       return
 
-	##
-	## Build 'standard' Python Date
-	##
+    ##
+    ## Build 'standard' Python Date
+    ##
     eyeFiLogger.debug( imageEXIFDateTime )
     tempDTList = string.split( imageEXIFDateTime, ' ' ) ## Split string at the 'space'
-    dateList = string.split( tempDTList[0], ':')  ## Split out at the ':'
-    timeList = string.split( tempDTList[1], ':')	## Split out at the ':'
+    dateList = string.split( tempDTList[0], ':')        ## Split out at the ':'
+    timeList = string.split( tempDTList[1], ':')        ## Split out at the ':'
     try:
       self.date_time = datetime.datetime( int(dateList[0]), int(dateList[1]), int(dateList[2]),
                                           int(timeList[0]), int(timeList[1]), int(timeList[2]) )
     except:
-	  ##  What errors could occur here to intercept???
+      ##  What errors could occur here to intercept???
       eyeFiLogger.error( "Error converting EXIF DateTimeOriginal.")
       return
-	
-	##
-	## Now read EXIF fields that we have defined in our class.  
-	##   This paradigm makes the supported EXIF data easily
-	##   extensible.
-	##
+
+    ##
+    ## Now read EXIF fields that we have defined in our class.  
+    ##   This paradigm makes the supported EXIF data easily
+    ##   extensible.
+    ##
     for indx in range(len(self.fields)):
       substitution = dict()
       field = self.fields[indx][0]
@@ -181,15 +181,15 @@ class EyeFiEXIFdata(object):
       self.rules.append( substitution )
 
   def flush( self ):
-	del self.rules[:]
-	
+    del self.rules[:]
+    
 ##
 ##
 class EyeFiFile(object):
 
   fileName = ""
   fileType = ""
-	
+
   rawTypes = ["CRW", "CR2", "NEF", "NRW", "DNG", "PTX", "PEF", "RAW", "RW2", "MPO", "ARW"]
   videoTypes = ["MPG", "MP4", "MTS", "MOV", "AVI", "WMV", "FLV"] 
 
@@ -198,7 +198,7 @@ class EyeFiFile(object):
 
     self.fileName = name[0]
     self.fileType = name[1]
-	
+
     if self.fileType == 'JPG':
       exifSupported = True
       self.optionPrefix = 'JPG-'
@@ -211,7 +211,7 @@ class EyeFiFile(object):
     else:
       ## Unrecognized file type
       raise TypeError
-	
+
     ## If EXIF supported, then get it
     ##
     self.exifData = EyeFiEXIFdata()
@@ -230,7 +230,7 @@ class EyeFiFile(object):
   def renameFile( eyeFiConfiguration, macaddress):
     return buildFromTemplate(eyeFiConfiguration, macaddress, self.optionPrefix + 'RenameFile', self.exifData)
     
-	 
+ 
 # Eye Fi XML SAX ContentHandler
 class EyeFiContentHandler(ContentHandler):
 
@@ -336,14 +336,14 @@ class EyeFiServer(SocketServer.ThreadingMixIn, BaseHTTPServer.HTTPServer):
         if( 'UploadLocation' in self.eyeFiConfiguration[macAddress] ):
           dllOption = self.eyeFiConfiguration[macAddress]['UploadLocation']
           if( dllOption[0] == '$'):
-            if len(dllOption) == 1:			## '$' alone specifies MAC address as a string for folder name
+            if len(dllOption) == 1: ## '$' alone specifies MAC address as a string for folder name
               folder = macAddress
             else:
               folder = dllOption[1:len(dllOption)]  ## '$' + text specifies custom relative path
             ## Both of these options are relative to the Base Folder
             folder = os.path.join( self.baseFolder, folder ) 
           else:
-            folder = dllOption			## text alone specifies custom absolute path (ignores 'Global' path)
+            folder = dllOption ## text alone specifies custom absolute path (ignores 'Global' path)
 
         ## If specified path does not exist, then create it
         if( len(folder) ):
@@ -432,9 +432,9 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
     
 
   def do_POST(self):
-	## 
-	## This is the section where I'm get the 'Broken Pipe' Error Messages or is it???
-	##   Probably needs a 'try...except...' block
+    ## 
+    ## This is the section where I'm get the 'Broken Pipe' Error Messages or is it???
+    ##   Probably needs a 'try...except...' block
 
     eyeFiLogger.debug(self.command + " " + self.path + " " + self.request_version)
 
@@ -461,7 +461,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
     try:
       postData = self.rfile.read(contentLength)
     except TypeError:
-	  contentLength = 'Nan'  
+      contentLength = 'Nan'  
     eyeFiLogger.debug("Finished reading " + str(contentLength) + " bytes of data")
 
     # To avoid logging the entire photograph only log postData that is under 2K
@@ -585,7 +585,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
   ##
   ## Method:
   ##   getTarFile(filename)
-  ##     filename				--
+  ##     filename --
   ##
   def getTarFile(self,untrustedFile,filename):
     ##
@@ -668,18 +668,18 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
       if( newFilename == None ):
         newFilename = uploadFile.filename
 
-	## Okay to overwrite files?
-	##   Default is no.
-	##		
+    ## Okay to overwrite files?
+    ##   Default is no.
+    ##
     boolOverwrite = False
     if( 'Overwrite' in self.server.eyeFiConfiguration['Global'] ):
       strOverwrite = string.upper(self.server.eyeFiConfiguration['Global']['Overwrite'])
       if( strOverwite == 'TRUE' ):
-	    eyeFiLogger.debug( "Overwrite is On")
-	    boolOverwrite = True
+        eyeFiLogger.debug( "Overwrite is On")
+        boolOverwrite = True
 
     if( boolOverwrite == False):
-	  ## Check for duplicate file in destination folder
+      ## Check for duplicate file in destination folder
       nnn = 0
       boolUnique = False
       filenameTemplate = newFilename + "-{sequence:03n}." + fileType
@@ -731,11 +731,11 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
     # eyeFiLogger.debug("uploadPhoto postData: " + postData)
     
     # Parse the multipart/form-data
-## TODO:
-## How does the 'form' get populated?
-##		In particular the INTEGRITYDIGEST key
-##      Sometimes there is no INTEGRITYDIGEST key and an KeyError exception is thrown
-##
+    ## TODO:
+    ## How does the 'form' get populated?
+    ##      In particular the INTEGRITYDIGEST key
+    ##      Sometimes there is no INTEGRITYDIGEST key and an KeyError exception is thrown
+    ##
     form = cgi.parse_multipart(postDataInMemoryFile, {"boundary":boundary,"content-disposition":self.headers.getheaders('content-disposition')})
     eyeFiLogger.debug("Available multipart/form-data: " + str(form.keys()))
     
@@ -797,7 +797,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         ## return from method "gracefully" with the success flag = False
           
     else:   
-	  ## This will catch the KeyError exception, too (see above)
+      ## This will catch the KeyError exception, too (see above)
       eyeFiLogger.error("Digests do not match. Check UploadKey setting in .ini file.")
       responseElementText = "false"
       ## return from method "gracefully" with the success flag = False
@@ -1048,19 +1048,19 @@ def readConfigurationFile(options):
 ##
 ## Function
 ##   buildFromTemplate
-##     eyeFiConfiguration 	-- configuration data previously read from .ini file
-##     macaddress			-- specific card's MAC Address
-##     option				-- configuration option within specific macaddress
-##								where a template may have been specified
-##     EXIFdata				-- EXIFdata class object with extracted EXIF data
+##     eyeFiConfiguration  -- configuration data previously read from .ini file
+##     macaddress          -- specific card's MAC Address
+##     option              -- configuration option within specific macaddress
+##                            where a template may have been specified
+##     EXIFdata            -- EXIFdata class object with extracted EXIF data
 ##
 ## Use information from EXIF data that has been extracted and saved into EXIFdata class
 ##   to build template that have been specified in the configuration file based on the
 ##   specified card's MAC address and option, e.g., 'AddSubFolder'
 ##
 ##   Note:  This function does NO error checking on the template format.  It just tries
-##			the standard substitutions.  If the template is constructed incorrectly, 
-##			it will just return a string with the correctly format substitutions resolved.
+##          the standard substitutions.  If the template is constructed incorrectly, 
+##          it will just return a string with the correctly format substitutions resolved.
 ##
 ##  Returns a string value of the resolved template if option found, otherwise None
 ##
@@ -1069,7 +1069,7 @@ def buildFromTemplate(eyeFiConfiguration, macaddress, option, EXIFdata):
   ## If option exists, then try to make substitutions
   if( option in eyeFiConfiguration[macaddress] ):
     ## Parse template
-	##   Create string based on template variables and available EXIF data to map into variables
+    ##   Create string based on template variables and available EXIF data to map into variables
     ##   Substitute '$' fields, if found, with EXIF fields, respectively.
     template = Template( eyeFiConfiguration[macaddress][option])
     ## Iterate over tags defined in list.  It is a list of lists (template field 'tag', EXIF 'tag', and EXIF data)
@@ -1084,8 +1084,8 @@ def buildFromTemplate(eyeFiConfiguration, macaddress, option, EXIFdata):
 ##
 ## Function
 ##   testTemplates
-##     eyeFiConfiguration 	-- configuration data previously read from .ini file
-##     options				-- OptionsParser class object with command line options
+##     eyeFiConfiguration   -- configuration data previously read from .ini file
+##     options              -- OptionsParser class object with command line options
 ##
 ## If options.imagefile is defined, then user specified a the '-t' switch
 ##   Use imagefile as example to show what the templates specified in the configuration file
@@ -1108,7 +1108,7 @@ def testTemplates( eyeFiConfiguration, options):
       imageEXIFdata = EyeFiEXIFdata(options.imagefile)
       ## If date_time data is valid then extraction went okay
       if( imageEXIFdata.date_time != None ):
-	    ## Crawl configuration options for templates
+        ## Crawl configuration options for templates
         for configKey in eyeFiConfiguration:  ## Iterate through all the configuration keys
           if( configKey != 'Global'):
             ## must be a macaddress key
@@ -1126,10 +1126,10 @@ def testTemplates( eyeFiConfiguration, options):
         eyeFiLogger.error("No EXIF data found in file: " + options.imageFile)
         exit(-1)
     else:
-	  ## No, exit with error
-	  eyeFiLogger.error("Example image file not found.")
-	  exit(-1)
-	  
+      ## No, exit with error
+      eyeFiLogger.error("Example image file not found.")
+      exit(-1)
+
 def main():
   
   # Load the available command line options
