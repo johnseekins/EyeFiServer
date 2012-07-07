@@ -1,69 +1,48 @@
 #!/usr/bin/env python
+#
+#  Copyright (c) 2009 Jeffrey Tchang
+#  Copyright (c) 2010 Pieter van Kemenade
+#  Copyright (c) 2011 Jeremy Fitzhardinge
+#  Copyright (c) 2011 Grant Nakamura
+# 
+#  THIS SOFTWARE IS PROVIDED ''AS IS'' AND ANY
+#  EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+#  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+#  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY
+#  DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+#  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+#  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+#  ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+#  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+#  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 """
-* Copyright (c) 2009, Jeffrey Tchang
-* Additional *pike
-* All rights reserved.
-*
-*
-* THIS SOFTWARE IS PROVIDED ''AS IS'' AND ANY
-* EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-* WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-* DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY
-* DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-* (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-* LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-* ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-* SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+This is a standalone Eye-Fi Server that is designed to take the place of the Eye-Fi Manager.
+
+Starting this server creates a listener on port 59278. I use the BaseHTTPServer class included
+with Python. I look for specific POST/GET request URLs and execute functions based on those
+URLs.
 """
-
-
-import cgi
 
 import sys
 import os
 import socket
 import StringIO
-
 import hashlib
 import binascii
 import tarfile
-
+from datetime import datetime
+import ConfigParser
+import cgi
+import logging
 import xml.sax
 from xml.sax.handler import ContentHandler
 import xml.dom.minidom
-
 from BaseHTTPServer import BaseHTTPRequestHandler
 import BaseHTTPServer
-
 import SocketServer
 
-import logging
-
-#pike
-from datetime import datetime
-import ConfigParser
-
 import eyeficrypto
-
-"""
-General architecture notes
-
-
-This is a standalone Eye-Fi Server that is designed to take the place of the Eye-Fi Manager.
-
-
-Starting this server creates a listener on port 59278. I use the BaseHTTPServer class included
-with Python. I look for specific POST/GET request URLs and execute functions based on those
-URLs.
-
-
-
-
-"""
-
-
 
 
 # Create the main logger
@@ -82,8 +61,8 @@ eyeFiLogger.addHandler(consoleHandler)
 
 
 
-# Eye Fi XML SAX ContentHandler
 class EyeFiContentHandler(ContentHandler):
+  "Eye Fi XML SAX ContentHandler"
 
   # These are the element names that I want to parse out of the XML
   elementNamesToExtract = ["macaddress", "cnonce", "transfermode", "transfermodetimestamp", "fileid", "filename", "filesize", "filesignature"]
@@ -122,9 +101,8 @@ class EyeFiContentHandler(ContentHandler):
       if self.elementsToExtract[elementName] == True:
         self.extractedElements[elementName] = content
 
-# Implements an EyeFi server
 class EyeFiServer(SocketServer.ThreadingMixIn, BaseHTTPServer.HTTPServer):
-
+  "Implements an EyeFi server"
 
   def server_bind(self):
 
@@ -156,10 +134,10 @@ class EyeFiServer(SocketServer.ThreadingMixIn, BaseHTTPServer.HTTPServer):
 
 
 
-# This class is responsible for handling HTTP requests passed to it.
-# It implements the two most common HTTP methods, do_GET() and do_POST()
 
 class EyeFiRequestHandler(BaseHTTPRequestHandler):
+  """This class is responsible for handling HTTP requests passed to it.
+  It implements the two most common HTTP methods, do_GET() and do_POST()"""
 
   # pike: these seem unused ?
   protocol_version = 'HTTP/1.1'
@@ -319,8 +297,8 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
       eyeFiLogger.debug("Connection closed.")
 
 
-  # Handles MarkLastPhotoInRoll action
   def markLastPhotoInRoll(self, postData):
+    "Handles MarkLastPhotoInRoll action"
     # Create the XML document to send back
     doc = xml.dom.minidom.Document()
 
@@ -337,9 +315,9 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
     return doc.toxml(encoding="UTF-8")
 
 
-  # Handles receiving the actual photograph from the card.
-  # postData will most likely contain multipart binary post data that needs to be parsed
   def uploadPhoto(self, postData):
+    """Handles receiving the actual photograph from the card.
+    postData will most likely contain multipart binary post data that needs to be parsed"""
 
     # Take the postData string and work with it as if it were a file object
     postDataInMemoryFile = StringIO.StringIO(postData)
@@ -398,7 +376,6 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         untrustedFile.write(form['FILENAME'][0])
 
         # Perform an integrity check on the file before writing it out
-        eyeFiCrypto = eyeficrypto.EyeFiCrypto()
         verifiedDigest = eyeFiCrypto.calculateIntegrityDigest(untrustedFile.getvalue(), upload_key)
         try:
           unverifiedDigest = form['INTEGRITYDIGEST'][0]
