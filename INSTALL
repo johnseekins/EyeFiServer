@@ -1,0 +1,28 @@
+This is eyefiserver version 0.1+
+
+Structure of this package :
+
+        .
+        |-- etc
+        |   |-- eyefiserver.conf
+        |   `-- init.d
+        |       `-- eyefiserver
+        |-- usr
+        |   `-- local
+        |       `-- bin
+        |           `-- eyefiserver.py
+        `-- var
+            `-- log
+                `-- eyefiserver.log
+        
+
+If you're familiar with linux, that basically sums it up :-)
+
+    unzip the tarball (its under downloads)
+    Put the stuff on the right place,
+    edit the eyefiserver.conf (your eyefi key has to go there)
+    optionally add stuff to your start-stop sequence. on debian/ubuntu, use update-rc.d: 
+
+sudo update-rc.d eyefiserver defaults 98 02
+
+et voila. 
