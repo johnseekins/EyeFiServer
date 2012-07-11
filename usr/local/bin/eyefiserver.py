@@ -33,6 +33,7 @@ URLs.
 import sys
 import os
 import socket
+import subprocess
 import StringIO
 import hashlib
 import binascii
@@ -442,6 +443,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
 
     eyeFiLogger.debug("Extracting TAR file %s", imageTarPath)
     imageTarfile = tarfile.open(imageTarPath)
+    imagefilename = imageTarfile.getnames()[0]
     imageTarfile.extractall(path=uploadDir)
 
     eyeFiLogger.debug("Closing TAR file %s", imageTarPath)
@@ -450,6 +452,16 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
     eyeFiLogger.debug("Deleting TAR file %s", imageTarPath)
     os.remove(imageTarPath)
 
+    # Run a command on the file if specified
+    try:
+      execute_cmd = self.server.config.get('EyeFiServer', 'execute')
+    except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+      execute_cmd = None
+    if execute_cmd:
+      imagepath = os.path.join(uploadDir, imagefilename)
+      eyeFiLogger.debug('Executing command "%s %s"', execute_cmd, imagepath)
+      subprocess.Popen([execute_cmd, imagepath])
+    
     # Create the XML document to send back
     doc = xml.dom.minidom.Document()
 
