@@ -599,7 +599,15 @@ def main():
   eyeFiLogger.addHandler(fileHandler)
 
 
-  server_address = (config.get('EyeFiServer','host_name'), config.getint('EyeFiServer', 'host_port'))
+  try:
+    server_ip = config.get('EyeFiServer','host_name')
+  except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+    host_name = ''
+  try:
+    server_port = config.getint('EyeFiServer','host_port')
+  except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+    server_port = 59278
+  server_address = server_ip, server_port
 
   # run webserver as www-data - cant get it working
   #if config.get('EyeFiServer', 'user_id')!='':
