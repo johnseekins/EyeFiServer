@@ -76,14 +76,14 @@ def calculateTCPChecksum(bytes):
 
   # If the number of bytes I was given is not a multiple of 2
   # pad the input with a null character at the end
-  if(len(bytes) % 2 != 0 ):
+  if len(bytes) % 2 != 0:
     bytes = bytes + "\x00"
       
   counter = 0
   sumOfTwoByteWords = 0
       
   # Loop over all the bytes, two at a time
-  while(counter < len(bytes) ):
+  while counter < len(bytes):
   
     # For each pair of bytes, cast them into a 2 byte integer (unsigned short)
     # Compute using little-endian (which is what the '<' sign if for)
@@ -98,7 +98,7 @@ def calculateTCPChecksum(bytes):
   # and the right 16 bites, interpret both as an integer of max value 2^16 and
   # add them together. If the resulting value is still bigger than 2^16 then do it
   # again until we get a value less than 16 bits.
-  while (sumOfTwoByteWords >> 16):
+  while sumOfTwoByteWords >> 16:
     sumOfTwoByteWords = (sumOfTwoByteWords >> 16) + (sumOfTwoByteWords & 0xFFFF) 
   
   # Take the one's complement of the result through the use of an xor
@@ -115,7 +115,7 @@ def calculateIntegrityDigest(bytes, uploadkey):
 
     # If the number of bytes I was given is not a multiple of 512
     # pad the input with a null characters to get the proper alignment
-    while(len(bytes) % 512 != 0 ):
+    while len(bytes) % 512 != 0:
       bytes = bytes + "\x00"
       
     counter = 0
@@ -124,7 +124,7 @@ def calculateIntegrityDigest(bytes, uploadkey):
     concatenatedTCPChecksums = array.array('H')
     
     # Loop over all the bytes, using 512 byte blocks
-    while(counter < len(bytes) ): 
+    while counter < len(bytes): 
       
       tcpChecksum = calculateTCPChecksum(bytes[counter:counter+512])
       concatenatedTCPChecksums.append(tcpChecksum)
@@ -146,46 +146,21 @@ def calculateIntegrityDigest(bytes, uploadkey):
     return integrityDigest
 
 
-
 class EyeFiContentHandler(ContentHandler):
   "Eye Fi XML SAX ContentHandler"
 
-  # These are the element names that I want to parse out of the XML
-  elementNamesToExtract = ["macaddress", "cnonce", "transfermode", "transfermodetimestamp", "fileid", "filename", "filesize", "filesignature"]
-
-  # For each of the element names I create a dictionary with the value to False
-  elementsToExtract = {}
-
-  # Where to put the extracted values
-  extractedElements = {}
-
-
   def __init__(self):
+    ContentHandler.__init__(self)
+  
+    # Where to put the extracted values
     self.extractedElements = {}
 
-    for elementName in self.elementNamesToExtract:
-        self.elementsToExtract[elementName] = False
-
   def startElement(self, name, attributes):
-
-    # If the name of the element is a key in the dictionary elementsToExtract
-    # set the value to True
-    if name in self.elementsToExtract:
-      self.elementsToExtract[name] = True
-
-  def endElement(self, name):
-
-    # If the name of the element is a key in the dictionary elementsToExtract
-    # set the value to False
-    if name in self.elementsToExtract:
-      self.elementsToExtract[name] = False
-
+    self.last_element_name = name
 
   def characters(self, content):
+    self.extractedElements[self.last_element_name] = content
 
-    for elementName in self.elementsToExtract:
-      if self.elementsToExtract[elementName] == True:
-        self.extractedElements[elementName] = content
 
 
 class EyeFiServer(SocketServer.ThreadingMixIn, BaseHTTPServer.HTTPServer):
@@ -382,7 +357,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
 
     # Parse the multipart/form-data
     form = cgi.parse_multipart(postDataInMemoryFile, {"boundary":boundary, "content-disposition":self.headers.getheaders('content-disposition')})
-    eyeFiLogger.debug("Available multipart/form-data: %s",form.keys())
+    eyeFiLogger.debug("Available multipart/form-data: %s", form.keys())
 
     # Parse the SOAPENVELOPE using the EyeFiContentHandler()
     soapEnvelope = form['SOAPENVELOPE'][0]
@@ -395,7 +370,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
     macaddress = handler.extractedElements["macaddress"]
     try:
       upload_key = self.server.config.get(macaddress, 'upload_key')
-    except ConfigParser.NoSectionError, ConfigParser.NoOptionError:
+    except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
       upload_key = self.server.config.get('EyeFiServer', 'upload_key')
     imageTarfileName = handler.extractedElements["filename"]
 
