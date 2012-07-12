@@ -411,9 +411,9 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
 
     now = datetime.now()
     try:
-        uploadDir = now.strftime(self.server.config.get('EyeFiServer', 'upload_dir'))
-    except ConfigParser.NoSectionError:
         uploadDir = now.strftime(self.server.config.get(macaddress, 'upload_dir'))
+    except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+        uploadDir = now.strftime(self.server.config.get('EyeFiServer', 'upload_dir'))
 
     uploadDir = os.path.expanduser(uploadDir) # expands ~
     if not os.path.isdir(uploadDir):
@@ -612,11 +612,11 @@ def main():
 
 
   try:
-    server_ip = config.get('EyeFiServer','host_name')
+    server_ip = config.get('EyeFiServer', 'host_name')
   except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-    host_name = ''
+    server_ip = ''
   try:
-    server_port = config.getint('EyeFiServer','host_port')
+    server_port = config.getint('EyeFiServer', 'host_port')
   except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
     server_port = 59278
   server_address = server_ip, server_port
