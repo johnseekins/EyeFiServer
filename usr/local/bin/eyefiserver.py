@@ -68,7 +68,7 @@ eyeFiLogger.addHandler(consoleHandler)
 
 
 
-def calculateTCPChecksum(bytes):
+def calculateTCPChecksum(buf):
   """
   The TCP checksum requires an even number of bytes. If an even
   number of bytes is not passed in then nul pad the input and then
@@ -77,18 +77,18 @@ def calculateTCPChecksum(bytes):
 
   # If the number of bytes I was given is not a multiple of 2
   # pad the input with a null character at the end
-  if len(bytes) % 2 != 0:
-    bytes = bytes + "\x00"
+  if len(buf) % 2 != 0:
+    buf = buf + "\x00"
       
   counter = 0
   sumOfTwoByteWords = 0
       
   # Loop over all the bytes, two at a time
-  while counter < len(bytes):
+  while counter < len(buf):
   
     # For each pair of bytes, cast them into a 2 byte integer (unsigned short)
     # Compute using little-endian (which is what the '<' sign if for)
-    unsignedShort = struct.unpack("<H", bytes[counter:counter+2])
+    unsignedShort = struct.unpack("<H", buf[counter:counter+2])
     
     # Add them all up
     sumOfTwoByteWords = sumOfTwoByteWords + int(unsignedShort[0])
@@ -112,22 +112,22 @@ def calculateTCPChecksum(bytes):
 
 
 
-def calculateIntegrityDigest(bytes, uploadkey):
+def calculateIntegrityDigest(buf, uploadkey):
 
     # If the number of bytes I was given is not a multiple of 512
     # pad the input with a null characters to get the proper alignment
-    while len(bytes) % 512 != 0:
-      bytes = bytes + "\x00"
+    while len(buf) % 512 != 0:
+      buf = buf + "\x00"
       
     counter = 0
     
     # Create an array of 2 byte integers
     concatenatedTCPChecksums = array.array('H')
     
-    # Loop over all the bytes, using 512 byte blocks
-    while counter < len(bytes): 
+    # Loop over all the buf, using 512 byte blocks
+    while counter < len(buf): 
       
-      tcpChecksum = calculateTCPChecksum(bytes[counter:counter+512])
+      tcpChecksum = calculateTCPChecksum(buf[counter:counter+512])
       concatenatedTCPChecksums.append(tcpChecksum)
       counter = counter + 512
 
