@@ -44,12 +44,12 @@ d_start() {
 	touch $LOGFILE
 	chown $EYEFIUSER:$EYEFIGROUP $LOGFILE
 	start-stop-daemon --start   \
-                --chuid $EYEFIUSER:$EYEFIGROUP \
-                --pidfile $PIDFILE \
+		--chuid $EYEFIUSER:$EYEFIGROUP \
+		--pidfile $PIDFILE \
 		--startas $DAEMON \
 		--background \
-                --make-pidfile \
-                -- $CFGFILE $LOGFILE
+		--make-pidfile \
+		-- --conf $CFGFILE --log $LOGFILE
 }
 
 

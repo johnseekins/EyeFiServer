@@ -42,6 +42,7 @@ import array
 import tarfile
 from datetime import datetime
 import ConfigParser
+from optparse import OptionParser
 import cgi
 import logging
 import xml.sax
@@ -581,22 +582,27 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
 
 
 def main():
+  parser = OptionParser(usage='%prog [options]')
+  parser.add_option('--conf',
+    action='append', dest='conffiles', metavar='conffile',
+    help='specific alternate location for configuration file. default=%default',
+    default=['/etc/eyefiserver.conf', os.path.expanduser('~/eyefiserver.conf')])
+  parser.add_option('--log', dest='logfile',
+    help='log to file')
+  options, args = parser.parse_args()
 
-  if len(sys.argv) != 3:
-    print "usage: %s configfile logfile" % os.path.basename(sys.argv[0])
-    sys.exit(2)
+  if args:
+    parser.error("That program takes no parameter.")
 
-  configfile = sys.argv[1]
-  eyeFiLogger.info("Reading config %s", configfile)
-
+  eyeFiLogger.info("Reading config from %s", options.conffiles)
   config = ConfigParser.SafeConfigParser()
-  config.read(configfile)
+  config.read(options.conffiles)
 
   # open file logging
-  logfile = sys.argv[2]
-  fileHandler = logging.FileHandler(logfile, "w", encoding=None)
-  fileHandler.setFormatter(eyeFiLoggingFormat)
-  eyeFiLogger.addHandler(fileHandler)
+  if options.logfile:
+    fileHandler = logging.FileHandler(options.logfile, "w", encoding=None)
+    fileHandler.setFormatter(eyeFiLoggingFormat)
+    eyeFiLogger.addHandler(fileHandler)
 
 
   try:
