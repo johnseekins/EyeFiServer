@@ -185,18 +185,6 @@ class EyeFiServer(SocketServer.ThreadingMixIn, BaseHTTPServer.HTTPServer):
       except socket.timeout:
         pass
 
-  #def stop(self):
-  #  self.run = False
-
-  # alt serve_forever method for python <2.6
-  # because we want a shutdown mech ..
-  #def serve(self):
-  #  while self.run:
-  #    self.handle_request()
-  #  self.socket.close()
-
-
-
 
 class EyeFiRequestHandler(BaseHTTPRequestHandler):
   """This class is responsible for handling HTTP requests passed to it.
@@ -631,22 +619,13 @@ def main():
     eyeFiServer = EyeFiServer(server_address, EyeFiRequestHandler)
     eyeFiServer.config = config
 
-    # Spawn a new thread for the server
-    # thread.start_new_thread(eyeFiServer.serve, ())
-
     eyeFiLogger.info("Eye-Fi server started listening on port %s", server_address[1])
     eyeFiServer.serve_forever()
 
-    #raw_input("\nPress <RETURN> to stop server\n")
-    #eyeFiServer.stop()
-    #eyeFiLogger.info("Eye-Fi server stopped")
-    #eyeFiServer.socket.close()
-
   except KeyboardInterrupt:
-    eyeFiServer.socket.close()
-    #eyeFiServer.shutdown()
-
-  #eyeFiLogger.info("Eye-Fi server stopped")
+    eyeFiLogger.info("Eye-Fi server shutting down")
+    eyeFiServer.shutdown()
+    eyeFiLogger.info("Eye-Fi server stopped")
 
 if __name__ == '__main__':
     main()
