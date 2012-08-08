@@ -168,23 +168,14 @@ class EyeFiContentHandler(ContentHandler):
 class EyeFiServer(SocketServer.ThreadingMixIn, BaseHTTPServer.HTTPServer):
   "Implements an EyeFi server"
 
-  def server_bind(self):
-
-    BaseHTTPServer.HTTPServer.server_bind(self)
-    self.socket.settimeout(None)
-    self.run = True
-
   def get_request(self):
-    while self.run:
-      try:
-        connection, address = self.socket.accept()
-        eyeFiLogger.debug("Incoming request from client %s", address[0])
-
-        connection.settimeout(None)
-        return (connection, address)
-
-      except socket.timeout:
-        pass
+    connection, address = BaseHTTPServer.HTTPServer.get_request(self)
+    eyeFiLogger.debug("Incoming request from client %s", address)
+    # It is important to have a non-null timeout because the card will send
+    # empty server discovery packets: These are never closed in a proper way,
+    # and would stack forever on the server side.
+    connection.settimeout(15)
+    return connection, address
 
 
 class EyeFiRequestHandler(BaseHTTPRequestHandler):
@@ -214,6 +205,10 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
 
 
   def do_POST(self):
+    # Be somewhat nicer after a real connection has been achieved
+    self.connection.settimeout(60) 
+
+    #eyeFiLogger.debug("Incoming request from client %s", self.connection.getpeername())
     eyeFiLogger.debug("%s %s %s", self.command, self.path, self.request_version)
 
     # Debug dump headers
@@ -630,8 +625,9 @@ def main():
 
   except KeyboardInterrupt:
     eyeFiLogger.info("Eye-Fi server shutting down")
+    eyeFiServer.socket.close()
     eyeFiServer.shutdown()
-    eyeFiLogger.info("Eye-Fi server stopped")
+    eyeFiLogger.info("Eye-Fi server shuting down. Waiting for threads to finish.")
 
 if __name__ == '__main__':
     main()
