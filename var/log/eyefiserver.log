@@ -1,0 +1,17 @@
+# *pike201008
+#
+# i left this file in the package for demo purposes.
+# eyefiserver will log here by default. it should look 
+# something like 
+#
+# [07/03/10 09:22PM][main] - Eye-Fi server started listening on port 59278
+# [07/25/10 11:59AM][get_request] - Incoming connection from client 192.168.1.21
+# [07/25/10 11:59AM][do_POST] - POST /api/soap/eyefilm/v1 HTTP/1.1
+# [07/25/10 11:59AM][do_POST] - Headers received in POST request:
+# [07/25/10 11:59AM][do_POST] - content-length: 408
+# ...
+# and end in 
+# ...
+# [07/25/10 11:59AM][uploadPhoto] - Extracting TAR file /home/www/public_html/files/documents/pike/personal/photoos/2010/20100725/CIMG0404.JPG.tar
+# [07/25/10 11:59AM][uploadPhoto] - Closing TAR file /home/www/public_html/files/documents/pike/personal/photoos/2010/20100725/CIMG0404.JPG.tar
+# [07/25/10 11:59AM][uploadPhoto] - Deleting TAR file /home/www/public_html/files/documents/pike/personal/photoos/2010/20100725/CIMG0404.JPG.tar
