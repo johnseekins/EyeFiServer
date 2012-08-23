@@ -1,0 +1,24 @@
+Source: eyefiserver
+Section: net
+Priority: optional
+Maintainer: Jean-Michel Vourgère <jmv_deb@nirgal.com>
+Build-Depends: debhelper (>= 9),
+               txt2man
+Standards-Version: 3.9.3
+Homepage: https://github.com/tachang/EyeFiServer/
+Vcs-Git: git://git.debian.org/git/collab-maint/eyefiserver.git
+Vcs-Browser: http://git.debian.org/?p=collab-maint/eyefiserver.git
+
+Package: eyefiserver
+Architecture: all
+Depends: ${misc:Depends}, python
+Description: Daemon to receive images from EyeFi SD card
+ EyeFi cards are SD cards that embed a small wifi ship. You can put one
+ in your camera and receive the pictures automagically on your wifi
+ network.
+ .
+ Unfortunatly, these cards use a proprietary protocol only available on
+ windows and macos.
+ .
+ This package will provide a compatible HTTP server, listening on port
+ 59278, that enables you to receive your pictures on your favorite os.
