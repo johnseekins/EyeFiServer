@@ -33,7 +33,9 @@ URLs.
 import sys
 import os
 import socket
+import select
 import subprocess
+import signal
 import StringIO
 import hashlib
 import binascii
@@ -180,29 +182,7 @@ class EyeFiServer(SocketServer.ThreadingMixIn, BaseHTTPServer.HTTPServer):
 
 class EyeFiRequestHandler(BaseHTTPRequestHandler):
   """This class is responsible for handling HTTP requests passed to it.
-  It implements the two most common HTTP methods, do_GET() and do_POST()"""
-
-  def do_GET(self):
-    eyeFiLogger.debug("%s %s %s", self.command, self.path, self.request_version)
-
-    SOAPAction = self.headers.get("soapaction", "")
-
-    # couldnt get this to work ..
-    #if((self.client_address == "localhost") and (self.path == "/api/soap/eyefilm/v1x") and (SOAPAction == "\"urn:StopServer\"")):
-    #  eyeFiLogger.debug("Got StopServer request .. stopping server")
-    #  self.server.stop()
-    # or, for python 2.6>
-    #  self.server.shutdown()
-
-    self.send_response(200)
-    self.send_header('Content-type', 'text/html')
-    # I should be sending a Content-Length header with HTTP/1.1 but I am being lazy
-    # self.send_header('Content-length', '123')
-    self.end_headers()
-    self.wfile.write(self.client_address)
-    self.wfile.write(self.headers)
-    self.close_connection = 0
-
+  It implements the common HTTP method do_POST()"""
 
   def do_POST(self):
     # Be somewhat nicer after a real connection has been achieved
@@ -576,6 +556,13 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
     return doc.toxml(encoding="UTF-8")
 
 
+def load_config(conffiles):
+  eyeFiLogger.info("Reading config from %s", conffiles)
+  config = ConfigParser.RawConfigParser()
+  config.read(conffiles)
+  return config
+
+
 def main():
   parser = OptionParser(usage='%prog [options]')
   parser.add_option('--conf',
@@ -589,9 +576,7 @@ def main():
   if args:
     parser.error("That program takes no parameter.")
 
-  eyeFiLogger.info("Reading config from %s", options.conffiles)
-  config = ConfigParser.RawConfigParser()
-  config.read(options.conffiles)
+  config = load_config(options.conffiles)
 
   # open file logging
   if options.logfile:
@@ -614,6 +599,10 @@ def main():
   #if config.get('EyeFiServer', 'user_id')!='':
   #  os.setuid(config.getint('EyeFiServer', 'user_id'))
 
+  def sighup_handler(signo, frm):
+    eyeFiServer.config = load_config(options.conffiles)
+  signal.signal(signal.SIGHUP, sighup_handler)
+
   try:
     # Create an instance of an HTTP server. Requests will be handled
     # by the class EyeFiRequestHandler
@@ -621,7 +610,14 @@ def main():
     eyeFiServer.config = config
 
     eyeFiLogger.info("Eye-Fi server started listening on port %s", server_address[1])
-    eyeFiServer.serve_forever()
+    while True:
+        try:
+            eyeFiServer.serve_forever()
+        except select.error as err:
+            if err.args[0] == 4: # interrupted system call interrupted by SIGHUP
+              pass # ignore it
+            else:
+              raise
 
   except KeyboardInterrupt:
     eyeFiLogger.info("Eye-Fi server shutting down")
