@@ -590,7 +590,7 @@ def main():
     parser.error("That program takes no parameter.")
 
   eyeFiLogger.info("Reading config from %s", options.conffiles)
-  config = ConfigParser.SafeConfigParser()
+  config = ConfigParser.RawConfigParser()
   config.read(options.conffiles)
 
   # open file logging
