@@ -235,26 +235,29 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
     if self.path == "/api/soap/eyefilm/v1" and SOAPAction == '"urn:StartSession"':
       # A SOAPAction of StartSession indicates the beginning of an EyeFi
       # authentication request
-      eyeFiLogger.debug("Got StartSession request %s", postData)
+      eyeFiLogger.info("Got StartSession request")
+      eyeFiLogger.debug("%s", postData)
       response = self.startSession(postData)
       eyeFiLogger.debug("StartSession response: %s", response)
 
     # GetPhotoStatus allows the card to query if a photo has been uploaded
     # to the server yet
     elif self.path == "/api/soap/eyefilm/v1" and SOAPAction == '"urn:GetPhotoStatus"':
-      eyeFiLogger.debug("Got GetPhotoStatus request %s", postData)
+      eyeFiLogger.info("Got GetPhotoStatus request")
+      eyeFiLogger.debug("%s", postData)
       response = self.getPhotoStatus(postData)
       eyeFiLogger.debug("GetPhotoStatus response: %s", response)
 
     # If the URL is upload and there is no SOAPAction the card is ready to send a picture to me
     elif self.path == "/api/soap/eyefilm/v1/upload" and not SOAPAction:
-      eyeFiLogger.debug("Got upload request")
+      eyeFiLogger.info("Got upload request")
       response = self.uploadPhoto(postData)
       eyeFiLogger.debug("Upload response: %s", response)
 
     # If the URL is upload and SOAPAction is MarkLastPhotoInRoll
     elif self.path == "/api/soap/eyefilm/v1" and SOAPAction == '"urn:MarkLastPhotoInRoll"':
-      eyeFiLogger.debug("Got MarkLastPhotoInRoll request %s", postData)
+      eyeFiLogger.info("Got MarkLastPhotoInRoll request")
+      eyeFiLogger.debug("%s", postData)
       response = self.markLastPhotoInRoll(postData)
       eyeFiLogger.debug("MarkLastPhotoInRoll response: %s", response)
 
@@ -566,6 +569,17 @@ def load_config(conffiles):
   eyeFiLogger.info("Reading config from %s", conffiles)
   config = ConfigParser.RawConfigParser()
   config.read(conffiles)
+
+  loglevel = logging.DEBUG
+  try:
+    loglevel = config.get('EyeFiServer', 'loglevel')
+    assert loglevel in ('DEBUG', 'INFO', 'WARN', 'WARNING', 'ERROR', 'FATAL'), \
+        'Error in conf file: Invalid loglevel'
+    loglevel = eval('logging.'+loglevel)
+  except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+    pass
+  eyeFiLogger.setLevel(loglevel)
+  
   return config
 
 
