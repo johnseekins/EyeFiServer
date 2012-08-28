@@ -18,12 +18,18 @@
 # GNU General Public License for more details.
 
 """
-This is a standalone Eye-Fi Server that is designed to take the place of the Eye-Fi Manager.
+This is a standalone Eye-Fi Server that is designed to take the place of the
+Eye-Fi Manager.
 
-Starting this server creates a listener on port 59278. I use the BaseHTTPServer class included
-with Python. I look for specific POST/GET request URLs and execute functions based on those
-URLs.
+Starting this server creates a listener on port 59278. I use the BaseHTTPServer
+class included with Python. I look for specific POST/GET request URLs and
+execute functions based on those URLs.
 """
+
+# Default is to listen to all addresses on port 59278
+# Exemple: SERVER_ADDRESS = '127.0.0.1', 59278
+SERVER_ADDRESS = '', 59278
+
 
 # KNOW BUGS:
 # logger doesn't catch exception from do_POST threads and such.
@@ -576,24 +582,11 @@ def main():
   if args:
     parser.error("That program takes no parameter.")
 
-  config = load_config(options.conffiles)
-
   # open file logging
   if options.logfile:
     fileHandler = logging.FileHandler(options.logfile, "w", encoding=None)
     fileHandler.setFormatter(eyeFiLoggingFormat)
     eyeFiLogger.addHandler(fileHandler)
-
-
-  try:
-    server_ip = config.get('EyeFiServer', 'host_name')
-  except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-    server_ip = ''
-  try:
-    server_port = config.getint('EyeFiServer', 'host_port')
-  except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-    server_port = 59278
-  server_address = server_ip, server_port
 
   # run webserver as www-data - cant get it working
   #if config.get('EyeFiServer', 'user_id')!='':
@@ -606,10 +599,10 @@ def main():
   try:
     # Create an instance of an HTTP server. Requests will be handled
     # by the class EyeFiRequestHandler
-    eyeFiServer = EyeFiServer(server_address, EyeFiRequestHandler)
-    eyeFiServer.config = config
+    eyeFiServer = EyeFiServer(SERVER_ADDRESS, EyeFiRequestHandler)
+    eyeFiServer.config = load_config(options.conffiles)
 
-    eyeFiLogger.info("Eye-Fi server started listening on port %s", server_address[1])
+    eyeFiLogger.info("Eye-Fi server starts listening on port %s", SERVER_ADDRESS[1])
     while True:
         try:
             eyeFiServer.serve_forever()
