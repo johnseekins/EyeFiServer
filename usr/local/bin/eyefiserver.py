@@ -185,6 +185,34 @@ class EyeFiServer(SocketServer.ThreadingMixIn, BaseHTTPServer.HTTPServer):
     connection.settimeout(15)
     return connection, address
 
+def build_soap_response(actionname, items):
+  """
+  Build an SOAP response in EyeFi format
+  """
+  # Create the XML document to send back
+  doc = xml.dom.minidom.Document()
+  
+  SOAPElement = doc.createElementNS('http://schemas.xmlsoap.org/soap/envelope/', 'SOAP-ENV:Envelope')
+  SOAPElement.setAttribute('xmlns:SOAP-ENV', 'http://schemas.xmlsoap.org/soap/envelope/')
+  doc.appendChild(SOAPElement)
+  
+  SOAPBodyElement = doc.createElement("SOAP-ENV:Body")
+  SOAPElement.appendChild(SOAPBodyElement)
+
+  actionElement = doc.createElement(actionname)
+  actionElement.setAttribute('xmlns', 'http://localhost/api/soap/eyefilm')
+  SOAPBodyElement.appendChild(actionElement)
+  # Note that in old version of code, the xmlns attribute was sent only for
+  # StartSessionResponse and GetPhotoStatusResponse
+  # but not for UploadPhotoResponse nor MarkLastPhotoInRollResponse
+
+  for key, value in items:
+    itemElement = doc.createElement(key)
+    actionElement.appendChild(itemElement)
+
+    itemElementText = doc.createTextNode(value)
+    itemElement.appendChild(itemElementText)
+  return doc.toxml(encoding="UTF-8")
 
 class EyeFiRequestHandler(BaseHTTPRequestHandler):
   """This class is responsible for handling HTTP requests passed to it.
@@ -291,20 +319,8 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
 
   def markLastPhotoInRoll(self, postData):
     "Handles MarkLastPhotoInRoll action"
-    # Create the XML document to send back
-    doc = xml.dom.minidom.Document()
 
-    SOAPElement = doc.createElementNS("http://schemas.xmlsoap.org/soap/envelope/", "SOAP-ENV:Envelope")
-    SOAPElement.setAttribute("xmlns:SOAP-ENV", "http://schemas.xmlsoap.org/soap/envelope/")
-    SOAPBodyElement = doc.createElement("SOAP-ENV:Body")
-
-    markLastPhotoInRollResponseElement = doc.createElement("MarkLastPhotoInRollResponse")
-
-    SOAPBodyElement.appendChild(markLastPhotoInRollResponseElement)
-    SOAPElement.appendChild(SOAPBodyElement)
-    doc.appendChild(SOAPElement)
-
-    return doc.toxml(encoding="UTF-8")
+    return build_soap_response('MarkLastPhotoInRollResponse', [])
 
 
   def uploadPhoto(self, postData):
@@ -435,59 +451,18 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
       eyeFiLogger.debug('Executing command "%s %s"', execute_cmd, imagepath)
       subprocess.Popen([execute_cmd, imagepath])
     
-    # Create the XML document to send back
-    doc = xml.dom.minidom.Document()
-
-    SOAPElement = doc.createElementNS("http://schemas.xmlsoap.org/soap/envelope/", "SOAP-ENV:Envelope")
-    SOAPElement.setAttribute("xmlns:SOAP-ENV", "http://schemas.xmlsoap.org/soap/envelope/")
-    SOAPBodyElement = doc.createElement("SOAP-ENV:Body")
-
-    uploadPhotoResponseElement = doc.createElement("UploadPhotoResponse")
-    successElement = doc.createElement("success")
-    successElementText = doc.createTextNode(responseElementText)
-
-    successElement.appendChild(successElementText)
-    uploadPhotoResponseElement.appendChild(successElement)
-
-    SOAPBodyElement.appendChild(uploadPhotoResponseElement)
-    SOAPElement.appendChild(SOAPBodyElement)
-    doc.appendChild(SOAPElement)
-
-    return doc.toxml(encoding="UTF-8")
-
+    return build_soap_response('UploadPhotoResponse', [
+      ('success', responseElementText),
+      ])
 
   def getPhotoStatus(self, postData):
-    handler = EyeFiContentHandler()
-    xml.sax.parseString(postData, handler)
+    #handler = EyeFiContentHandler()
+    #xml.sax.parseString(postData, handler)
 
-    # Create the XML document to send back
-    doc = xml.dom.minidom.Document()
-
-    SOAPElement = doc.createElementNS("http://schemas.xmlsoap.org/soap/envelope/", "SOAP-ENV:Envelope")
-    SOAPElement.setAttribute("xmlns:SOAP-ENV", "http://schemas.xmlsoap.org/soap/envelope/")
-    SOAPBodyElement = doc.createElement("SOAP-ENV:Body")
-
-    getPhotoStatusResponseElement = doc.createElement("GetPhotoStatusResponse")
-    getPhotoStatusResponseElement.setAttribute("xmlns", "http://localhost/api/soap/eyefilm")
-
-    fileidElement = doc.createElement("fileid")
-    fileidElementText = doc.createTextNode("1")
-    fileidElement.appendChild(fileidElementText)
-
-    offsetElement = doc.createElement("offset")
-    offsetElementText = doc.createTextNode("0")
-    offsetElement.appendChild(offsetElementText)
-
-    getPhotoStatusResponseElement.appendChild(fileidElement)
-    getPhotoStatusResponseElement.appendChild(offsetElement)
-
-    SOAPBodyElement.appendChild(getPhotoStatusResponseElement)
-
-    SOAPElement.appendChild(SOAPBodyElement)
-    doc.appendChild(SOAPElement)
-
-    return doc.toxml(encoding="UTF-8")
-
+    return build_soap_response('GetPhotoStatusResponse', [
+      ('fileid', '1'),
+      ('offset','0'),
+      ])
 
   def startSession(self, postData):
     # Delegating the XML parsing of startSession postData to EyeFiContentHandler()
@@ -519,50 +494,13 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
     # Hex encode the hash to obtain the final credential string
     credential = m.hexdigest()
 
-    # Create the XML document to send back
-    doc = xml.dom.minidom.Document()
-
-    SOAPElement = doc.createElementNS("http://schemas.xmlsoap.org/soap/envelope/", "SOAP-ENV:Envelope")
-    SOAPElement.setAttribute("xmlns:SOAP-ENV", "http://schemas.xmlsoap.org/soap/envelope/")
-    SOAPBodyElement = doc.createElement("SOAP-ENV:Body")
-
-
-    startSessionResponseElement = doc.createElement("StartSessionResponse")
-    startSessionResponseElement.setAttribute("xmlns", "http://localhost/api/soap/eyefilm")
-
-    credentialElement = doc.createElement("credential")
-    credentialElementText = doc.createTextNode(credential)
-    credentialElement.appendChild(credentialElementText)
-
-    snonceElement = doc.createElement("snonce")
-    snonceElementText = doc.createTextNode("99208c155fc1883579cf0812ec0fe6d2")
-    snonceElement.appendChild(snonceElementText)
-
-    transfermodeElement = doc.createElement("transfermode")
-    transfermodeElementText = doc.createTextNode(handler.extractedElements["transfermode"])
-    transfermodeElement.appendChild(transfermodeElementText)
-
-    transfermodetimestampElement = doc.createElement("transfermodetimestamp")
-    transfermodetimestampElementText = doc.createTextNode(handler.extractedElements["transfermodetimestamp"])
-    transfermodetimestampElement.appendChild(transfermodetimestampElementText)
-
-    upsyncallowedElement = doc.createElement("upsyncallowed")
-    upsyncallowedElementText = doc.createTextNode("false")
-    upsyncallowedElement.appendChild(upsyncallowedElementText)
-
-
-    startSessionResponseElement.appendChild(credentialElement)
-    startSessionResponseElement.appendChild(snonceElement)
-    startSessionResponseElement.appendChild(transfermodeElement)
-    startSessionResponseElement.appendChild(transfermodetimestampElement)
-    startSessionResponseElement.appendChild(upsyncallowedElement)
-
-    SOAPBodyElement.appendChild(startSessionResponseElement)
-
-    SOAPElement.appendChild(SOAPBodyElement)
-    doc.appendChild(SOAPElement)
-
-    return doc.toxml(encoding="UTF-8")
+    return build_soap_response('StartSessionResponse', [
+      ('credential', credential),
+      ('snonce', '99208c155fc1883579cf0812ec0fe6d2'),
+      ('transfermode', handler.extractedElements['transfermode']),
+      ('transfermodetimestamp', handler.extractedElements['transfermodetimestamp']),
+      ('upsyncallowed', 'false'),
+      ])
 
 
 def load_config(conffiles):
