@@ -30,6 +30,10 @@ execute functions based on those URLs.
 # Exemple: SERVER_ADDRESS = '127.0.0.1', 59278
 SERVER_ADDRESS = '', 59278
 
+# How many bytes are read at once:
+# If the value is too small, non-upload request might fail
+# If the value is too big, the progress meter will not be precise
+READ_CHUNK_SIZE = 10 * 1024
 
 # KNOW BUGS:
 # logger doesn't catch exception from do_POST threads and such.
@@ -41,7 +45,7 @@ import os
 import select
 import subprocess
 import signal
-import StringIO
+from StringIO import StringIO
 import hashlib
 import binascii
 import struct
@@ -129,32 +133,32 @@ def calculateIntegrityDigest(buf, uploadkey):
     while len(buf) % 512 != 0:
         buf = buf + "\x00"
 
-        counter = 0
+    counter = 0
 
-        # Create an array of 2 byte integers
-        concatenatedTCPChecksums = array.array('H')
+    # Create an array of 2 byte integers
+    concatenatedTCPChecksums = array.array('H')
 
-        # Loop over all the buf, using 512 byte blocks
-        while counter < len(buf): 
+    # Loop over all the buf, using 512 byte blocks
+    while counter < len(buf): 
 
-            tcpChecksum = calculateTCPChecksum(buf[counter:counter+512])
-            concatenatedTCPChecksums.append(tcpChecksum)
-            counter = counter + 512
+        tcpChecksum = calculateTCPChecksum(buf[counter:counter+512])
+        concatenatedTCPChecksums.append(tcpChecksum)
+        counter = counter + 512
 
-        # Append the upload key
-        concatenatedTCPChecksums.fromstring(binascii.unhexlify(uploadkey))
+    # Append the upload key
+    concatenatedTCPChecksums.fromstring(binascii.unhexlify(uploadkey))
 
-        # Get the concatenatedTCPChecksums array as a binary string
-        integrityDigest = concatenatedTCPChecksums.tostring()
+    # Get the concatenatedTCPChecksums array as a binary string
+    integrityDigest = concatenatedTCPChecksums.tostring()
 
-        # MD5 hash the binary string
-        m = hashlib.md5()
-        m.update(integrityDigest)
+    # MD5 hash the binary string
+    m = hashlib.md5()
+    m.update(integrityDigest)
 
-        # Hex encode the hash to obtain the final integrity digest
-        integrityDigest = m.hexdigest()
+    # Hex encode the hash to obtain the final integrity digest
+    integrityDigest = m.hexdigest()
 
-        return integrityDigest
+    return integrityDigest
 
 
 class EyeFiContentHandler(xml.sax.handler.ContentHandler):
@@ -224,6 +228,31 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
     """This class is responsible for handling HTTP requests passed to it.
     It implements the common HTTP method do_POST()"""
 
+
+    def split_multipart(self, postdata):
+        """
+        Takes a EyeFi http posted data
+        Returns a dictionnary of multipart/form-data if available
+        Otherwise returns returns a dictionary with a single key 'SOAPENVELOPE'
+        """
+        content_type = self.headers.get('content-type', '')
+        if content_type.startswith('multipart/form-data'):
+            # content-type header looks something like this
+            # multipart/form-data; boundary=---------------------------02468ace13579bdfcafebabef00d
+            multipart_boundary = content_type.split('=')[1].strip()
+            
+            form = cgi.parse_multipart(StringIO(postdata),
+                {'boundary': multipart_boundary})
+            eyeFiLogger.debug("Available multipart/form-data: %s", form.keys())
+
+            # Keep only the first value for each key
+            for key in form.keys():
+                form[key] = form[key][0]
+            return form
+        else:
+            return {'SOAPENVELOPE': postdata}
+
+
     def do_POST(self):
         """
         That function is called when a HTTP POST request is received.
@@ -238,51 +267,43 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         for name, value in self.headers.items():
             eyeFiLogger.debug(name + ": " + value)
 
-        # Read POST data
-        contentLength = int(self.headers.get("content-length"))
-        eyeFiLogger.debug("Reading %d bytes of data", contentLength)
-        start = datetime.utcnow()
-        postData = self.rfile.read(contentLength)
-        elapsed_time = datetime.utcnow() - start
-        elapsed_seconds = elapsed_time.days * 86400 \
-                        + elapsed_time.seconds \
-                        + elapsed_time.microseconds / 1000000.
-        eyeFiLogger.debug("Finished reading %d bytes of data in %f seconds",
-                          len(postData), elapsed_seconds)
-        if elapsed_seconds: # no /0
-            eyeFiLogger.debug("Speed was %d kBps", len(postData)/elapsed_seconds/1000)
+        # Read at most READ_CHUNK_SIZE bytes of POST data
+        content_length = int(self.headers.get("content-length"))
+        if content_length > READ_CHUNK_SIZE:
+            readsize = READ_CHUNK_SIZE
+        else:
+            readsize = content_length
+        eyeFiLogger.debug("Reading %d bytes of data", readsize)
+        postdata = self.rfile.read(readsize)
+        if len(postdata) != readsize:
+            eyeFiLogger.error('Failed to read %s bytes', readsize)
+            self.close_connection = 1
+            return
 
-        # TODO: What if len(postData) <> contentLength
-        # TODO: Implement some kind of visual progress bar
-        # bytesRead = 0
-        # postData = ""
-
-        # while(bytesRead < contentLength):
-        #    postData = postData + self.rfile.read(1)
-        #     bytesRead = bytesRead + 1
-
-        #    if(bytesRead % 10000 == 0):
-        #        print "#",
-
+        splited_postdata = self.split_multipart(postdata)
+        
+        soapenv = splited_postdata['SOAPENVELOPE']
+            
+        # Delegating the XML parsing of postdata to EyeFiContentHandler()
+        handler = EyeFiContentHandler()
+        xml.sax.parseString(soapenv, handler)
+        soapdata = handler.extractedElements
 
         # Perform action based on path and soapaction
         if self.path == "/api/soap/eyefilm/v1":
+            eyeFiLogger.debug("%s", postdata)
+
+            # Get and normalize soapaction http header
             soapaction = self.headers.get("soapaction", "")
             if soapaction[:5] == '"urn:' and soapaction[-1] == '"':
                 soapaction = soapaction[5:-1]
             else:
                 eyeFiLogger.error('soapaction should have format "urn:action"')
+                self.close_connection = 1
                 return
             
-            eyeFiLogger.debug("%s", postData)
-
-            # Delegating the XML parsing of startSession postData to EyeFiContentHandler()
-            handler = EyeFiContentHandler()
-            xml.sax.parseString(postData, handler)
-            soapdata = handler.extractedElements
-
             eyeFiLogger.info("Got request %s(%s)", 
-                soapaction, ", ".join(["%s=%s" % (key, value) for key, value in soapdata.items()]))
+                soapaction, ", ".join(["%s='%s'" % (key, value) for key, value in soapdata.items()]))
 
             if soapaction == 'StartSession':
                 # A soapaction of StartSession indicates the beginning of an EyeFi
@@ -300,18 +321,25 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
 
             else:
                 eyeFiLogger.error('Unsupported soap action %s', soapaction)
+                self.close_connection = 1
                 return
 
             eyeFiLogger.debug("%s response: %s", soapaction, response)
 
         elif self.path == "/api/soap/eyefilm/v1/upload":
             # If the URL is upload, the card is ready to send a picture to me
-            eyeFiLogger.info("Got upload request")
-            response = self.uploadPhoto(postData)
+
+            eyeFiLogger.info("Got request UploadPhoto(%s)", 
+                ", ".join(["%s='%s'" % (key, value) for key, value in soapdata.items()]))
+
+            tardata = splited_postdata['FILENAME'] # just the begining
+
+            response = self.uploadPhoto(postdata, soapdata, tardata, content_length)
             eyeFiLogger.debug("Upload response: %s", response)
 
         else:
             logging.error('Unsupported POST request: url="%s"', self.path)
+            self.close_connection = 1
             return
 
         self.send_eyefi_response(response)
@@ -348,52 +376,52 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         return build_soap_response('MarkLastPhotoInRollResponse', [])
 
 
-    def uploadPhoto(self, postData):
+    def uploadPhoto(self, postdata, soapdata, tardata, content_length):
         """
         Handles receiving the actual photograph from the card.
-        postData will most likely contain multipart binary post data that needs to
+        postdata will most likely contain multipart binary post data that needs to
         be parsed.
         """
+        # Here, tardata is only the first bytes of tar file content
 
-        # Take the postData string and work with it as if it were a file object
-        postDataInMemoryFile = StringIO.StringIO(postData)
+        tarsize = int(soapdata['filesize']) # size to reach
 
-        # Get the content-type header which looks something like this
-        # content-type: multipart/form-data; boundary=---------------------------02468ace13579bdfcafebabef00d
-        contentTypeHeader = self.headers.getheaders('content-type').pop()
-        eyeFiLogger.debug(contentTypeHeader)
+        # Read remaining POST data
+        while len(postdata) < content_length:
+            readsize = content_length - len(postdata)
+            if readsize > READ_CHUNK_SIZE:
+                readsize = READ_CHUNK_SIZE
+            start = datetime.utcnow()
+            readdata = self.rfile.read(readsize)
+            if len(readdata) != readsize:
+                eyeFiLogger.error('Failed to read %s bytes', readsize)
+                self.close_connection = 1
+                return
+            elapsed_time = datetime.utcnow() - start
+            elapsed_seconds = elapsed_time.days * 86400 \
+                            + elapsed_time.seconds \
+                            + elapsed_time.microseconds / 1000000.
 
-        # Extract the boundary parameter in the content-type header
-        headerParameters = contentTypeHeader.split(";")
-        eyeFiLogger.debug(headerParameters)
+            # We need to keep a full copy of postdata for integrity
+            # verification
+            postdata += readdata
 
-        boundary = headerParameters[1].split("=")
-        boundary = boundary[1].strip()
-        eyeFiLogger.debug("Extracted boundary: %s", boundary)
+            if len(tardata) < tarsize:
+                if len(tardata) + len(readdata) <= tarsize:
+                    tardata += readdata
+                else:
+                    tardata += readdata[:tarsize-len(tardata)]
 
-        # eyeFiLogger.debug("uploadPhoto postData: %s", postData)
+            if elapsed_seconds: # no /0
+                eyeFiLogger.debug("%s: Read %s / %s bytes (%02.02f%%) %d kBps",
+                    soapdata['filename'],
+                    len(postdata),
+                    content_length,
+                    len(postdata) * 100. / content_length,
+                    len(readdata)/elapsed_seconds/1000)
 
-        # Parse the multipart/form-data
-        form = cgi.parse_multipart(postDataInMemoryFile, {
-            "boundary":boundary,
-            "content-disposition":self.headers.getheaders('content-disposition')
-            })
-        eyeFiLogger.debug("Available multipart/form-data: %s", form.keys())
 
-        # Parse the SOAPENVELOPE using the EyeFiContentHandler()
-        soapEnvelope = form['SOAPENVELOPE'][0]
-        eyeFiLogger.debug("SOAPENVELOPE: %s", soapEnvelope)
-        handler = EyeFiContentHandler()
-        xml.sax.parseString(soapEnvelope, handler)
-
-        eyeFiLogger.debug("Extracted elements: %s", handler.extractedElements)
-
-        macaddress = handler.extractedElements["macaddress"]
-        try:
-            upload_key = self.server.config.get(macaddress, 'upload_key')
-        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-            upload_key = self.server.config.get('EyeFiServer', 'upload_key')
-        
+        macaddress = soapdata["macaddress"]
         #pike
         #uid = self.server.config.getint('EyeFiServer', 'upload_uid')
         #gid = self.server.config.getint('EyeFiServer', 'upload_gid')
@@ -402,31 +430,6 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         #eyeFiLogger.debug("Using mode %s", mode)
 
         responseElementText = "true"
-
-        try:
-            integrity_verification = self.server.config.getboolean('EyeFiServer', 'integrity_verification')
-        except ConfigParser.NoOptionError:
-            integrity_verification = False
-
-        if integrity_verification:
-            # Write the newly uploaded file to memory
-            untrustedFile = StringIO.StringIO()
-            untrustedFile.write(form['FILENAME'][0])
-
-            # Perform an integrity check on the file before writing it out
-            verifiedDigest = calculateIntegrityDigest(untrustedFile.getvalue(), upload_key)
-            try:
-                unverifiedDigest = form['INTEGRITYDIGEST'][0]
-            except KeyError:
-                eyeFiLogger.error("No INTEGRITYDIGEST received.")
-            else:
-                eyeFiLogger.debug("Comparing my digest [%s] to card's digest [%s].",
-                    verifiedDigest, unverifiedDigest)
-                if verifiedDigest == unverifiedDigest:
-                    eyeFiLogger.debug("INTEGRITYDIGEST passes test.")
-                else:
-                    eyeFiLogger.error("Digests do not match. Check upload_key setting in .conf file.")
-                    responseElementText = "false"
 
         try:
             upload_dir = self.server.config.get(macaddress, 'upload_dir')
@@ -443,16 +446,47 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
             #if mode!="":
             #    os.chmod(upload_dir, string.atoi(mode))
 
-        imageTarPath = os.path.join(upload_dir, handler.extractedElements["filename"])
+        imageTarPath = os.path.join(upload_dir, soapdata["filename"])
 
         fileHandle = open(imageTarPath, 'wb')
         eyeFiLogger.debug("Opened file %s for binary writing", imageTarPath)
 
-        fileHandle.write(form['FILENAME'][0])
+        fileHandle.write(tardata)
         eyeFiLogger.debug("Wrote file %s", imageTarPath)
 
         fileHandle.close()
         eyeFiLogger.debug("Closed file %s", imageTarPath)
+
+
+        try:
+            integrity_verification = self.server.config.getboolean('EyeFiServer', 'integrity_verification')
+        except ConfigParser.NoOptionError:
+            integrity_verification = False
+
+        if integrity_verification:
+            # Start postdata parsing again, to get INTEGRITYDIGEST key.
+            # That key is not available until all of postdata is received
+            splited_postdata = self.split_multipart(postdata)
+
+            try:
+                upload_key = self.server.config.get(macaddress, 'upload_key')
+            except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+                upload_key = self.server.config.get('EyeFiServer', 'upload_key')
+        
+            # Perform an integrity check on the file before writing it out
+            verifiedDigest = calculateIntegrityDigest(splited_postdata['FILENAME'], upload_key)
+            try:
+                unverifiedDigest = splited_postdata['INTEGRITYDIGEST']
+            except KeyError:
+                eyeFiLogger.error("No INTEGRITYDIGEST received.")
+            else:
+                eyeFiLogger.debug("Comparing my digest [%s] to card's digest [%s].",
+                    verifiedDigest, unverifiedDigest)
+                if verifiedDigest == unverifiedDigest:
+                    eyeFiLogger.debug("INTEGRITYDIGEST passes test.")
+                else:
+                    eyeFiLogger.error("Digests do not match. Check upload_key setting in .conf file.")
+                    responseElementText = "false"
 
         #if uid!=0 and gid!=0:
         #    os.chown(imageTarPath, uid, gid)
