@@ -60,6 +60,12 @@ READ_CHUNK_SIZE = 10 * 1024
 # Repport download progress every few seconds
 PROGRESS_FREQUENCY = timedelta(0, 1)
 
+# The server HTTP header
+HTTP_SERVER_NAME = 'Eye-Fi Agent/2.0.4.0 (Windows XP SP2)'
+
+# Format of log messages:
+LOG_FORMAT = '[%(asctime)s][%(funcName)s] - %(message)s'
+
 # KNOW BUGS:
 # logger doesn't catch exception from do_POST threads and such.
 # So these errors are logged to stderr only, not in log files.
@@ -69,20 +75,7 @@ PROGRESS_FREQUENCY = timedelta(0, 1)
 # Create the main logger
 eyeFiLogger = logging.Logger("eyeFiLogger", logging.DEBUG)
 
-# Create two handlers. One to print to the log and one to print to the console
-consoleHandler = logging.StreamHandler(sys.stderr)
-
-# Set how both handlers will print the pretty log events
-eyeFiLoggingFormat = logging.Formatter("[%(asctime)s][%(funcName)s] - %(message)s")
-consoleHandler.setFormatter(eyeFiLoggingFormat)
-
-# Append both handlers to the main Eye Fi Server logger
-eyeFiLogger.addHandler(consoleHandler)
-
-
-
-
-def calculateTCPChecksum(buf):
+def calculate_tcp_checksum(buf):
     """
     The TCP checksum requires an even number of bytes. If an even
     number of bytes is not passed in then nul pad the input and then
@@ -95,7 +88,7 @@ def calculateTCPChecksum(buf):
         buf = buf + "\x00"
 
     counter = 0
-    sumOfTwoByteWords = 0
+    sum_of_shorts = 0
 
     # Loop over all the bytes, two at a time
     while counter < len(buf):
@@ -103,10 +96,10 @@ def calculateTCPChecksum(buf):
         # For each pair of bytes, cast them into a 2 byte integer (unsigned
         # short).
         # Compute using little-endian (which is what the '<' sign if for)
-        unsignedShort = struct.unpack("<H", buf[counter:counter+2])
+        unsignedshort = struct.unpack("<H", buf[counter:counter+2])
 
         # Add them all up
-        sumOfTwoByteWords = sumOfTwoByteWords + int(unsignedShort[0])
+        sum_of_shorts = sum_of_shorts + int(unsignedshort[0])
         counter = counter + 2
 
 
@@ -114,12 +107,11 @@ def calculateTCPChecksum(buf):
     # and the right 16 bites, interpret both as an integer of max value 2^16
     # and add them together. If the resulting value is still bigger than 2^16
     # then do it again until we get a value less than 16 bits.
-    while sumOfTwoByteWords >> 16:
-        sumOfTwoByteWords = (sumOfTwoByteWords >> 16) \
-                          + (sumOfTwoByteWords & 0xFFFF) 
+    while sum_of_shorts >> 16:
+        sum_of_shorts = (sum_of_shorts >> 16) + (sum_of_shorts & 0xFFFF)
 
     # Take the one's complement of the result through the use of an xor
-    checksum = sumOfTwoByteWords ^ 0xFFFFFFFF
+    checksum = sum_of_shorts ^ 0xFFFFFFFF
 
     # Compute the final checksum by taking only the last 16 bits
     checksum = checksum & 0xFFFF
@@ -128,7 +120,7 @@ def calculateTCPChecksum(buf):
 
 
 
-def calculateIntegrityDigest(buf, uploadkey):
+def calculate_integritydigest(buf, uploadkey):
     """
     Compute a CRC for buf & uploadket
     See IntegrityDigest bellow
@@ -141,29 +133,29 @@ def calculateIntegrityDigest(buf, uploadkey):
     counter = 0
 
     # Create an array of 2 byte integers
-    concatenatedTCPChecksums = array.array('H')
+    concatenated_tcp_checksums = array.array('H')
 
     # Loop over all the buf, using 512 byte blocks
     while counter < len(buf): 
-
-        tcpChecksum = calculateTCPChecksum(buf[counter:counter+512])
-        concatenatedTCPChecksums.append(tcpChecksum)
+        
+        tcp_checksum = calculate_tcp_checksum(buf[counter:counter+512])
+        concatenated_tcp_checksums.append(tcp_checksum)
         counter = counter + 512
 
     # Append the upload key
-    concatenatedTCPChecksums.fromstring(binascii.unhexlify(uploadkey))
+    concatenated_tcp_checksums.fromstring(binascii.unhexlify(uploadkey))
 
-    # Get the concatenatedTCPChecksums array as a binary string
-    integrityDigest = concatenatedTCPChecksums.tostring()
+    # Get the concatenated_tcp_checksums array as a binary string
+    integritydigest = concatenated_tcp_checksums.tostring()
 
     # MD5 hash the binary string
-    m = hashlib.md5()
-    m.update(integrityDigest)
+    md5 = hashlib.md5()
+    md5.update(integritydigest)
 
     # Hex encode the hash to obtain the final integrity digest
-    integrityDigest = m.hexdigest()
+    integritydigest = md5.hexdigest()
 
-    return integrityDigest
+    return integritydigest
 
 
 class EyeFiContentHandler(xml.sax.handler.ContentHandler):
@@ -171,15 +163,14 @@ class EyeFiContentHandler(xml.sax.handler.ContentHandler):
 
     def __init__(self):
         xml.sax.handler.ContentHandler.__init__(self)
-
-        # Where to put the extracted values
-        self.extractedElements = {}
+        self.extracted_elements = {} # Where to put the extracted values
+        self.last_element_name = ''
 
     def startElement(self, name, attributes):
         self.last_element_name = name
 
     def characters(self, content):
-        self.extractedElements[self.last_element_name] = content
+        self.extracted_elements[self.last_element_name] = content
 
 
 class EyeFiServer(SocketServer.ThreadingMixIn, BaseHTTPServer.HTTPServer):
@@ -204,30 +195,32 @@ def build_soap_response(actionname, items):
     # Create the XML document to send back
     doc = xml.dom.minidom.Document()
 
-    SOAPElement = doc.createElementNS(
+    soapenv_element = doc.createElementNS(
         'http://schemas.xmlsoap.org/soap/envelope/',
         'SOAP-ENV:Envelope')
-    SOAPElement.setAttribute(
+    soapenv_element.setAttribute(
         'xmlns:SOAP-ENV',
         'http://schemas.xmlsoap.org/soap/envelope/')
-    doc.appendChild(SOAPElement)
+    doc.appendChild(soapenv_element)
 
-    SOAPBodyElement = doc.createElement("SOAP-ENV:Body")
-    SOAPElement.appendChild(SOAPBodyElement)
+    soapbody_element = doc.createElement("SOAP-ENV:Body")
+    soapenv_element.appendChild(soapbody_element)
 
-    actionElement = doc.createElement(actionname)
-    actionElement.setAttribute('xmlns', 'http://localhost/api/soap/eyefilm')
-    SOAPBodyElement.appendChild(actionElement)
+    soapaction_element = doc.createElement(actionname)
+    soapaction_element.setAttribute(
+        'xmlns',
+        'http://localhost/api/soap/eyefilm')
+    soapbody_element.appendChild(soapaction_element)
     # Note that in old version of code, this xmlns attribute was sent only for
     # StartSessionResponse and GetPhotoStatusResponse
     # but not for UploadPhotoResponse nor MarkLastPhotoInRollResponse
 
     for key, value in items:
-        itemElement = doc.createElement(key)
-        actionElement.appendChild(itemElement)
+        item_element = doc.createElement(key)
+        soapaction_element.appendChild(item_element)
 
-        itemElementText = doc.createTextNode(value)
-        itemElement.appendChild(itemElementText)
+        item_elementtext = doc.createTextNode(value)
+        item_element.appendChild(item_elementtext)
     return doc.toxml(encoding="UTF-8")
 
 
@@ -245,7 +238,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         content_type = self.headers.get('content-type', '')
         if content_type.startswith('multipart/form-data'):
             # content-type header looks something like this
-            # multipart/form-data; boundary=---------------------------02468ace13579bdfcafebabef00d
+            # multipart/form-data; boundary=---------------------------02468a...
             multipart_boundary = content_type.split('=')[1].strip()
             
             form = cgi.parse_multipart(StringIO(postdata),
@@ -292,7 +285,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         # Delegating the XML parsing of postdata to EyeFiContentHandler()
         handler = EyeFiContentHandler()
         xml.sax.parseString(soapenv, handler)
-        soapdata = handler.extractedElements
+        soapdata = handler.extracted_elements
 
         # Perform action based on path and soapaction
         if self.path == "/api/soap/eyefilm/v1":
@@ -360,7 +353,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Date', self.date_time_string())
         self.send_header('Pragma', 'no-cache')
-        self.send_header('Server', 'Eye-Fi Agent/2.0.4.0 (Windows XP SP2)')
+        self.send_header('Server', HTTP_SERVER_NAME)
         self.send_header('Content-Type', 'text/xml; charset="utf-8"')
         self.send_header('Content-Length', len(response))
         if self.headers.get('Connection', '') == 'Keep-Alive':
@@ -390,6 +383,14 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         be parsed.
         """
         # Here, tardata is only the first bytes of tar file content
+
+        def uploadphoto_response(success):
+            """
+            Helper function
+            """
+            return build_soap_response('UploadPhotoResponse', [
+                ('success', success),
+                ])
 
         macaddress = soapdata["macaddress"]
 
@@ -476,9 +477,6 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         #eyeFiLogger.debug("Using uid/gid %d/%d"%(uid, gid))
         #eyeFiLogger.debug("Using mode %s", mode)
 
-        responseElementText = "true"
-
-
         tarfilehandle.close()
         eyeFiLogger.debug("Closed file %s", tarpath)
 
@@ -500,31 +498,31 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
                 upload_key = self.server.config.get('EyeFiServer', 'upload_key')
         
             # Perform an integrity check on the file before writing it out
-            verifiedDigest = calculateIntegrityDigest(
+            verified_digest = calculate_integritydigest(
                 splited_postdata['FILENAME'], upload_key)
             try:
-                unverifiedDigest = splited_postdata['INTEGRITYDIGEST']
+                unverified_digest = splited_postdata['INTEGRITYDIGEST']
             except KeyError:
                 eyeFiLogger.error("No INTEGRITYDIGEST received.")
             else:
                 eyeFiLogger.debug(
                     "Comparing my digest [%s] to card's digest [%s].",
-                    verifiedDigest, unverifiedDigest)
-                if verifiedDigest == unverifiedDigest:
+                    verified_digest, unverified_digest)
+                if verified_digest == unverified_digest:
                     eyeFiLogger.debug("INTEGRITYDIGEST passes test.")
                 else:
                     eyeFiLogger.error(
                         "INTEGRITYDIGEST pass failed. File rejected.")
-                    responseElementText = "false"
+                    return uploadphoto_response('false')
 
 
         eyeFiLogger.debug("Extracting TAR file %s", tarpath)
-        imageTarfile = tarfile.open(tarpath)
-        imagefilename = imageTarfile.getnames()[0]
-        imageTarfile.extractall(path=upload_dir)
+        imagetarfile = tarfile.open(tarpath)
+        imagefilename = imagetarfile.getnames()[0]
+        imagetarfile.extractall(path=upload_dir)
 
         eyeFiLogger.debug("Closing TAR file %s", tarpath)
-        imageTarfile.close()
+        imagetarfile.close()
 
         eyeFiLogger.debug("Deleting TAR file %s", tarpath)
         os.remove(tarpath)
@@ -540,9 +538,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
                               execute_cmd, imagepath)
             subprocess.Popen([execute_cmd, imagepath])
 
-        return build_soap_response('UploadPhotoResponse', [
-            ('success', responseElementText),
-            ])
+        return uploadphoto_response('true')
 
 
     def getPhotoStatus(self, soapdata):
@@ -564,20 +560,20 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
 
         eyeFiLogger.debug("Setting Eye-Fi upload key to %s", upload_key)
 
-        credentialString = macaddress + cnonce + upload_key
+        credentialstring = macaddress + cnonce + upload_key
         eyeFiLogger.debug("Concatenated credential string (pre MD5): %s",
-                          credentialString)
+                          credentialstring)
 
         # Return the binary data represented by the hexadecimal string
         # resulting in something that looks like "\x00\x18V\x03\x04..."
-        binaryCredentialString = binascii.unhexlify(credentialString)
+        binarycredentialstring = binascii.unhexlify(credentialstring)
 
         # Now MD5 hash the binary string
-        m = hashlib.md5()
-        m.update(binaryCredentialString)
+        md5 = hashlib.md5()
+        md5.update(binarycredentialstring)
 
         # Hex encode the hash to obtain the final credential string
-        credential = m.hexdigest()
+        credential = md5.hexdigest()
 
         return build_soap_response('StartSessionResponse', [
             ('credential', credential),
@@ -626,11 +622,22 @@ def main():
     if args:
         parser.error("That program takes no parameter.")
 
+    # Create two handlers. One to print to the log and one to print to the
+    # console
+    consolehandler = logging.StreamHandler(sys.stderr)
+    
+    # Set how both handlers will print the pretty log events
+    loggingformater = logging.Formatter(LOG_FORMAT)
+    consolehandler.setFormatter(loggingformater)
+    
+    # Append both handlers to the main Eye Fi Server logger
+    eyeFiLogger.addHandler(consolehandler)
+
     # open file logging
     if options.logfile:
-        fileHandler = logging.FileHandler(options.logfile, "w", encoding=None)
-        fileHandler.setFormatter(eyeFiLoggingFormat)
-        eyeFiLogger.addHandler(fileHandler)
+        filehandler = logging.FileHandler(options.logfile, "w", encoding=None)
+        filehandler.setFormatter(loggingformater)
+        eyeFiLogger.addHandler(filehandler)
 
     # run webserver as www-data - cant get it working
     #if config.get('EyeFiServer', 'user_id')!='':
@@ -640,20 +647,20 @@ def main():
         """
         That function is called on SIGUP and reload the configuration files.
         """
-        eyeFiServer.config = load_config(options.conffiles)
+        eyefiserver.config = load_config(options.conffiles)
     signal.signal(signal.SIGHUP, sighup_handler)
 
     try:
         # Create an instance of an HTTP server. Requests will be handled
         # by the class EyeFiRequestHandler
-        eyeFiServer = EyeFiServer(SERVER_ADDRESS, EyeFiRequestHandler)
-        eyeFiServer.config = load_config(options.conffiles)
+        eyefiserver = EyeFiServer(SERVER_ADDRESS, EyeFiRequestHandler)
+        eyefiserver.config = load_config(options.conffiles)
 
         eyeFiLogger.info("Eye-Fi server starts listening on port %s",
                          SERVER_ADDRESS[1])
         while True:
             try:
-                eyeFiServer.serve_forever()
+                eyefiserver.serve_forever()
             except select.error as err:
                 if err.args[0] == 4: # system call interrupted by SIGHUP
                     pass # ignore it
@@ -662,8 +669,8 @@ def main():
 
     except KeyboardInterrupt:
         eyeFiLogger.info("Eye-Fi server shutting down")
-        eyeFiServer.socket.close()
-        eyeFiServer.shutdown()
+        eyefiserver.socket.close()
+        eyefiserver.shutdown()
         eyeFiLogger.info("Waiting for threads to finish.")
 
 if __name__ == '__main__':
