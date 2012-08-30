@@ -384,7 +384,40 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         """
         # Here, tardata is only the first bytes of tar file content
 
-        tarsize = int(soapdata['filesize']) # size to reach
+        macaddress = soapdata["macaddress"]
+
+        # Get upload_dir
+        try:
+            upload_dir = self.server.config.get(macaddress, 'upload_dir')
+        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+            upload_dir = self.server.config.get('EyeFiServer', 'upload_dir')
+        upload_dir = datetime.now().strftime(upload_dir) # resolves %Y and so
+        upload_dir = os.path.expanduser(upload_dir) # expands ~
+
+        # Check/create upload_dir
+        if not os.path.isdir(upload_dir):
+            os.makedirs(upload_dir)
+            eyeFiLogger.debug("Generated path %s", upload_dir)
+            #if uid!=0 and gid!=0:
+            #    os.chown(upload_dir, uid, gid)
+            #if mode!="":
+            #    os.chmod(upload_dir, string.atoi(mode))
+
+        tarpath = os.path.join(upload_dir, soapdata["filename"])
+
+        tarfilehandle = open(tarpath, 'wb')
+        eyeFiLogger.debug("Opened file %s for binary writing", tarpath)
+
+        #if uid!=0 and gid!=0:
+        #    os.chown(tarpath, uid, gid)
+        #if mode!="":
+        #    os.chmod(tarpath, string.atoi(mode))
+
+        
+        tarfinalsize = int(soapdata['filesize']) # size to reach
+
+        tarfilehandle.write(tardata)
+        tarsize = len(tardata)
 
         # Read remaining POST data
         while len(postdata) < content_length:
@@ -406,11 +439,13 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
             # verification
             postdata += readdata
 
-            if len(tardata) < tarsize:
-                if len(tardata) + len(readdata) <= tarsize:
-                    tardata += readdata
+            if tarsize < tarfinalsize:
+                if tarsize + len(readdata) <= tarfinalsize:
+                    tarfilehandle.write(readdata)
+                    tarsize += len(readdata)
                 else:
-                    tardata += readdata[:tarsize-len(tardata)]
+                    tarfilehandle.write(readdata[:tarfinalsize-tarsize])
+                    tarsize = tarfinalsize
 
             if elapsed_seconds: # no /0
                 eyeFiLogger.debug("%s: Read %s / %s bytes (%02.02f%%) %d kBps",
@@ -421,7 +456,6 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
                     len(readdata)/elapsed_seconds/1000)
 
 
-        macaddress = soapdata["macaddress"]
         #pike
         #uid = self.server.config.getint('EyeFiServer', 'upload_uid')
         #gid = self.server.config.getint('EyeFiServer', 'upload_gid')
@@ -431,31 +465,9 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
 
         responseElementText = "true"
 
-        try:
-            upload_dir = self.server.config.get(macaddress, 'upload_dir')
-        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-            upload_dir = self.server.config.get('EyeFiServer', 'upload_dir')
-        upload_dir = datetime.now().strftime(upload_dir) # resolves %Y and so
-        upload_dir = os.path.expanduser(upload_dir) # expands ~
 
-        if not os.path.isdir(upload_dir):
-            os.makedirs(upload_dir)
-            eyeFiLogger.debug("Generated path %s", upload_dir)
-            #if uid!=0 and gid!=0:
-            #    os.chown(upload_dir, uid, gid)
-            #if mode!="":
-            #    os.chmod(upload_dir, string.atoi(mode))
-
-        imageTarPath = os.path.join(upload_dir, soapdata["filename"])
-
-        fileHandle = open(imageTarPath, 'wb')
-        eyeFiLogger.debug("Opened file %s for binary writing", imageTarPath)
-
-        fileHandle.write(tardata)
-        eyeFiLogger.debug("Wrote file %s", imageTarPath)
-
-        fileHandle.close()
-        eyeFiLogger.debug("Closed file %s", imageTarPath)
+        tarfilehandle.close()
+        eyeFiLogger.debug("Closed file %s", tarpath)
 
 
         try:
@@ -488,21 +500,17 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
                     eyeFiLogger.error("Digests do not match. Check upload_key setting in .conf file.")
                     responseElementText = "false"
 
-        #if uid!=0 and gid!=0:
-        #    os.chown(imageTarPath, uid, gid)
-        #if mode!="":
-        #    os.chmod(imageTarPath, string.atoi(mode))
 
-        eyeFiLogger.debug("Extracting TAR file %s", imageTarPath)
-        imageTarfile = tarfile.open(imageTarPath)
+        eyeFiLogger.debug("Extracting TAR file %s", tarpath)
+        imageTarfile = tarfile.open(tarpath)
         imagefilename = imageTarfile.getnames()[0]
         imageTarfile.extractall(path=upload_dir)
 
-        eyeFiLogger.debug("Closing TAR file %s", imageTarPath)
+        eyeFiLogger.debug("Closing TAR file %s", tarpath)
         imageTarfile.close()
 
-        eyeFiLogger.debug("Deleting TAR file %s", imageTarPath)
-        os.remove(imageTarPath)
+        eyeFiLogger.debug("Deleting TAR file %s", tarpath)
+        os.remove(tarpath)
 
         # Run a command on the file if specified
         try:
