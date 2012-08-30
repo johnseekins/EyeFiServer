@@ -26,20 +26,6 @@ class included with Python. I look for specific POST/GET request URLs and
 execute functions based on those URLs.
 """
 
-# Default is to listen to all addresses on port 59278
-# Exemple: SERVER_ADDRESS = '127.0.0.1', 59278
-SERVER_ADDRESS = '', 59278
-
-# How many bytes are read at once:
-# If the value is too small, non-upload request might fail
-# If the value is too big, the progress meter will not be precise
-READ_CHUNK_SIZE = 10 * 1024
-
-# KNOW BUGS:
-# logger doesn't catch exception from do_POST threads and such.
-# So these errors are logged to stderr only, not in log files.
-# Prefer stderr for debugging
-
 import sys
 import os
 import select
@@ -51,7 +37,7 @@ import binascii
 import struct
 import array
 import tarfile
-from datetime import datetime
+from datetime import datetime, timedelta
 import ConfigParser
 from optparse import OptionParser
 import cgi
@@ -61,6 +47,23 @@ import xml.dom.minidom
 from BaseHTTPServer import BaseHTTPRequestHandler
 import BaseHTTPServer
 import SocketServer
+
+# Default is to listen to all addresses on port 59278
+# Exemple: SERVER_ADDRESS = '127.0.0.1', 59278
+SERVER_ADDRESS = '', 59278
+
+# How many bytes are read at once:
+# If the value is too small, non-upload request might fail
+# If the value is too big, the progress meter will not be precise
+READ_CHUNK_SIZE = 10 * 1024
+
+# Repport download progress every few seconds
+PROGRESS_FREQUENCY = timedelta(0, 1)
+
+# KNOW BUGS:
+# logger doesn't catch exception from do_POST threads and such.
+# So these errors are logged to stderr only, not in log files.
+# Prefer stderr for debugging
 
 
 # Create the main logger
@@ -425,19 +428,16 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
 
         # Read remaining POST data
         content_length = int(self.headers.get("content-length"))
+        speedtest_starttime = datetime.utcnow()
+        speedtest_startsize = len(postdata)
         while len(postdata) < content_length:
             readsize = min(content_length - len(postdata), READ_CHUNK_SIZE)
-            start = datetime.utcnow()
             readdata = self.rfile.read(readsize)
             if len(readdata) != readsize:
                 eyeFiLogger.error('Failed to read %s bytes', readsize)
                 self.close_connection = 1
                 return
-            elapsed_time = datetime.utcnow() - start
-            elapsed_seconds = elapsed_time.days * 86400 \
-                            + elapsed_time.seconds \
-                            + elapsed_time.microseconds / 1000000.
-
+            
             # We need to keep a full copy of postdata for integrity
             # verification
             postdata += readdata
@@ -450,13 +450,23 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
                     tarfilehandle.write(readdata[:tarfinalsize-tarsize])
                     tarsize = tarfinalsize
 
-            if elapsed_seconds: # no /0
-                eyeFiLogger.debug("%s: Read %s / %s bytes (%02.02f%%) %d kBps",
+            if datetime.utcnow() - speedtest_starttime > PROGRESS_FREQUENCY:
+                elapsed_time = datetime.utcnow() - speedtest_starttime
+
+                elapsed_seconds = elapsed_time.days * 86400 \
+                                + elapsed_time.seconds \
+                                + elapsed_time.microseconds / 1000000.
+
+                eyeFiLogger.debug("%s: Read %s / %s bytes (%02.02f%%) %d kbps",
                     soapdata['filename'],
                     len(postdata),
                     content_length,
                     len(postdata) * 100. / content_length,
-                    len(readdata)/elapsed_seconds/1000)
+                    (len(postdata)-speedtest_startsize)/elapsed_seconds/1000*8
+                    )
+                
+                speedtest_starttime = datetime.utcnow()
+                speedtest_startsize = tarsize
 
 
         #pike
