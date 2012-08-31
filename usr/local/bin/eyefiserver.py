@@ -79,80 +79,87 @@ LOG_FORMAT = '[%(asctime)s][%(funcName)s] - %(message)s'
 eyeFiLogger = logging.Logger("eyeFiLogger", logging.DEBUG)
 
 
-def calculate_tcp_checksum(buf):
+
+class IntegrityDigestFile(file):
     """
-    The TCP checksum requires an even number of bytes. If an even
-    number of bytes is not passed in then nul pad the input and then
-    compute the checksum
+    Wrapper around file object
+    All write() calls are used to compute a CRC the Eye-Fi way
     """
+    def __init__(self, *args, **kargs):
+        file.__init__(self, *args, **kargs)
+        # Create an array of 2 byte integers
+        self.concatenated_tcp_checksums = array.array('H')
+        self.todo_buffer = '' # bytes that weren't used yet
 
-    # If the number of bytes I was given is not a multiple of 2
-    # pad the input with a null character at the end
-    if len(buf) % 2 != 0:
-        buf = buf + "\x00"
+    @staticmethod
+    def calculate_tcp_checksum(buf):
+        """
+        The TCP checksum requires an even number of bytes. If an even
+        number of bytes is not passed in then nul pad the input and then
+        compute the checksum
+        """
 
-    sum_of_shorts = 0
+        # If the number of bytes I was given is not a multiple of 2
+        # pad the input with a null character at the end
+        if len(buf) % 2 != 0:
+            buf = buf + "\x00"
 
-    # For each pair of bytes, cast them into a 2 byte integer (unsigned
-    # short).
-    # Compute using little-endian (which is what the '<' sign if for)
-    for ushort in struct.unpack('<' + 'H' * (len(buf)/2), buf):
-        # Add them all up
-        sum_of_shorts = sum_of_shorts + int(ushort)
+        sum_of_shorts = 0
 
-    # The sum at this point is probably a 32 bit integer. Take the left 16 bits
-    # and the right 16 bites, interpret both as an integer of max value 2^16
-    # and add them together. If the resulting value is still bigger than 2^16
-    # then do it again until we get a value less than 16 bits.
-    while sum_of_shorts >> 16:
-        sum_of_shorts = (sum_of_shorts >> 16) + (sum_of_shorts & 0xFFFF)
+        # For each pair of bytes, cast them into a 2 byte integer (unsigned
+        # short).
+        # Compute using little-endian (which is what the '<' sign if for)
+        for ushort in struct.unpack('<' + 'H' * (len(buf)/2), buf):
+            # Add them all up
+            sum_of_shorts = sum_of_shorts + int(ushort)
 
-    # Take the one's complement of the result through the use of an xor
-    checksum = sum_of_shorts ^ 0xFFFFFFFF
+        # The sum at this point is probably a 32 bit integer. Take the left 16
+        # bits and the right 16 bites, interpret both as an integer of max value
+        # 2^16 and add them together. If the resulting value is still bigger
+        # than 2^16 then do it again until we get a value less than 16 bits.
+        while sum_of_shorts >> 16:
+            sum_of_shorts = (sum_of_shorts >> 16) + (sum_of_shorts & 0xFFFF)
 
-    # Compute the final checksum by taking only the last 16 bits
-    checksum = checksum & 0xFFFF
+        # Take the one's complement of the result through the use of an xor
+        checksum = sum_of_shorts ^ 0xFFFFFFFF
 
-    return checksum
+        # Compute the final checksum by taking only the last 16 bits
+        checksum = checksum & 0xFFFF
+
+        return checksum
 
 
+    def write(self, buf):
+        file.write(self, buf)
+        self.todo_buffer += buf
+        while (len(self.todo_buffer) > 512):
+            tcp_checksum = self.calculate_tcp_checksum(self.todo_buffer[:512])
+            self.concatenated_tcp_checksums.append(tcp_checksum)
+            self.todo_buffer = self.todo_buffer[512:]
 
-def calculate_integritydigest(buf, uploadkey):
-    """
-    Compute a CRC for buf & uploadkey
-    See IntegrityDigest bellow
-    """
-    # If the number of bytes I was given is not a multiple of 512
-    # pad the input with a null characters to get the proper alignment
-    # buf = buf.ljust(len(buf) + 511 - (len(buf) - 1) % 512, '\x00')
-    # Deactivated: adding '\0' does not change the sum of ushorts.
 
-    counter = 0
+    def getintegritydigest(self, uploadkey):
+        """
+        Returns Eye-Fi CRC value based on previous write()
+        """
+        # send the remaining buffer
+        tcp_checksum = self.calculate_tcp_checksum(self.todo_buffer)
+        self.concatenated_tcp_checksums.append(tcp_checksum)
 
-    # Create an array of 2 byte integers
-    concatenated_tcp_checksums = array.array('H')
+        # Append the upload key
+        binuploadkey = binascii.unhexlify(uploadkey)
+        self.concatenated_tcp_checksums.fromstring(binuploadkey)
 
-    # Loop over all the buf, using 512 byte blocks
-    while counter < len(buf): 
-        
-        tcp_checksum = calculate_tcp_checksum(buf[counter:counter+512])
-        concatenated_tcp_checksums.append(tcp_checksum)
-        counter = counter + 512
+        # Get the concatenated_tcp_checksums array as a binary string
+        integritydigest = self.concatenated_tcp_checksums.tostring()
 
-    # Append the upload key
-    concatenated_tcp_checksums.fromstring(binascii.unhexlify(uploadkey))
+        # MD5 hash the binary string
+        md5 = hashlib.md5()
+        md5.update(integritydigest)
 
-    # Get the concatenated_tcp_checksums array as a binary string
-    integritydigest = concatenated_tcp_checksums.tostring()
+        # Hex encode the hash to obtain the final integrity digest
+        return md5.hexdigest()
 
-    # MD5 hash the binary string
-    md5 = hashlib.md5()
-    md5.update(integritydigest)
-
-    # Hex encode the hash to obtain the final integrity digest
-    integritydigest = md5.hexdigest()
-
-    return integritydigest
 
 
 class EyeFiContentHandler(xml.sax.handler.ContentHandler):
@@ -237,7 +244,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
             # content-type header looks something like this
             # multipart/form-data; boundary=---------------------------02468a...
             multipart_boundary = content_type.split('=')[1].strip()
-            
+
             form = cgi.parse_multipart(StringIO(postdata),
                 {'boundary': multipart_boundary})
             eyeFiLogger.debug("Available multipart/form-data: %s", form.keys())
@@ -256,7 +263,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         """
         # Be somewhat nicer after a real connection has been achieved
         # see EyeFiServer.get_request comments
-        self.connection.settimeout(60) 
+        self.connection.settimeout(60)
 
         # Debug dump request:
         eyeFiLogger.debug("%s %s %s",
@@ -276,9 +283,9 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
             return
 
         splited_postdata = self.split_multipart(postdata)
-        
+
         soapenv = splited_postdata['SOAPENVELOPE']
-            
+
         # Delegating the XML parsing of postdata to EyeFiContentHandler()
         handler = EyeFiContentHandler()
         xml.sax.parseString(soapenv, handler)
@@ -296,7 +303,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
                 eyeFiLogger.error('soapaction should have format "urn:action"')
                 self.close_connection = 1
                 return
-            
+
             eyeFiLogger.info("Got request %s(%s)", soapaction, ", ".join(
                     ["%s='%s'" % (key, value)
                      for key, value in soapdata.items()]))
@@ -408,7 +415,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
                 use_date_from_file = self.server.config.get('EyeFiServer', 'use_date_from_file')
             except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
                 pass
-        
+
         # if needed, get reference date from the tar fragment
         # This is possible because the tar content is at the begining
         if use_date_from_file:
@@ -432,7 +439,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
 
         tarpath = os.path.join(upload_dir, soapdata["filename"])
 
-        tarfilehandle = open(tarpath, 'wb')
+        tarfilehandle = IntegrityDigestFile(tarpath, 'wb')
         eyeFiLogger.debug("Opened file %s for binary writing", tarpath)
 
         #if uid!=0 and gid!=0:
@@ -440,7 +447,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         #if mode!="":
         #    os.chmod(tarpath, string.atoi(mode))
 
-        
+
         tarfinalsize = int(soapdata['filesize']) # size to reach
 
         tarfilehandle.write(tardata)
@@ -457,7 +464,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
                 eyeFiLogger.error('Failed to read %s bytes', readsize)
                 self.close_connection = 1
                 return
-            
+
             # We need to keep a full copy of postdata for integrity
             # verification
             postdata += readdata
@@ -484,7 +491,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
                     len(postdata) * 100. / content_length,
                     (len(postdata)-speedtest_startsize)/elapsed_seconds/1000*8
                     )
-                
+ 
                 speedtest_starttime = datetime.utcnow()
                 speedtest_startsize = tarsize
 
@@ -515,11 +522,9 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
                 upload_key = self.server.config.get(macaddress, 'upload_key')
             except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
                 upload_key = self.server.config.get('EyeFiServer', 'upload_key')
-        
-            # Perform an integrity check on the file before writing it out
-            eyeFiLogger.debug('Starting integrity digest computation')
-            verified_digest = calculate_integritydigest(
-                splited_postdata['FILENAME'], upload_key)
+
+            # Perform an integrity check on the file
+            verified_digest = tarfilehandle.getintegritydigest(upload_key)
             try:
                 unverified_digest = splited_postdata['INTEGRITYDIGEST']
             except KeyError:
@@ -645,11 +650,11 @@ def main():
     # Create two handlers. One to print to the log and one to print to the
     # console
     consolehandler = logging.StreamHandler(sys.stderr)
-    
+
     # Set how both handlers will print the pretty log events
     loggingformater = logging.Formatter(LOG_FORMAT)
     consolehandler.setFormatter(loggingformater)
-    
+
     # Append both handlers to the main Eye Fi Server logger
     eyeFiLogger.addHandler(consolehandler)
 
