@@ -75,6 +75,7 @@ LOG_FORMAT = '[%(asctime)s][%(funcName)s] - %(message)s'
 # Create the main logger
 eyeFiLogger = logging.Logger("eyeFiLogger", logging.DEBUG)
 
+
 def calculate_tcp_checksum(buf):
     """
     The TCP checksum requires an even number of bytes. If an even
@@ -87,21 +88,14 @@ def calculate_tcp_checksum(buf):
     if len(buf) % 2 != 0:
         buf = buf + "\x00"
 
-    counter = 0
     sum_of_shorts = 0
 
-    # Loop over all the bytes, two at a time
-    while counter < len(buf):
-
-        # For each pair of bytes, cast them into a 2 byte integer (unsigned
-        # short).
-        # Compute using little-endian (which is what the '<' sign if for)
-        unsignedshort = struct.unpack("<H", buf[counter:counter+2])
-
+    # For each pair of bytes, cast them into a 2 byte integer (unsigned
+    # short).
+    # Compute using little-endian (which is what the '<' sign if for)
+    for ushort in struct.unpack('<' + 'H' * (len(buf)/2), buf):
         # Add them all up
-        sum_of_shorts = sum_of_shorts + int(unsignedshort[0])
-        counter = counter + 2
-
+        sum_of_shorts = sum_of_shorts + int(ushort)
 
     # The sum at this point is probably a 32 bit integer. Take the left 16 bits
     # and the right 16 bites, interpret both as an integer of max value 2^16
@@ -520,6 +514,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
                 upload_key = self.server.config.get('EyeFiServer', 'upload_key')
         
             # Perform an integrity check on the file before writing it out
+            eyeFiLogger.debug('Starting integrity digest computation')
             verified_digest = calculate_integritydigest(
                 splited_postdata['FILENAME'], upload_key)
             try:
