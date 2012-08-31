@@ -399,8 +399,30 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
             upload_dir = self.server.config.get(macaddress, 'upload_dir')
         except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
             upload_dir = self.server.config.get('EyeFiServer', 'upload_dir')
-        upload_dir = datetime.now().strftime(upload_dir) # resolves %Y and so
         upload_dir = os.path.expanduser(upload_dir) # expands ~
+
+
+        # Get date_from_file flag
+        use_date_from_file = False
+        try:
+            use_date_from_file = self.server.config.get(macaddress, 'use_date_from_file')
+        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+            try:
+                use_date_from_file = self.server.config.get('EyeFiServer', 'use_date_from_file')
+            except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+                pass
+        
+        # if needed, get reference date from the tar fragment
+        # This is possible because the tar content is at the begining
+        if use_date_from_file:
+            imagetarfile = tarfile.open(fileobj=StringIO(tardata))
+            imageinfo = imagetarfile.getmembers()[0].get_info(encoding=None, errors=None)
+            reference_date = datetime.fromtimestamp(imageinfo['mtime'])
+        else:
+            reference_date = datetime.now()
+
+        # resolves %Y and so inside upload_dir value
+        upload_dir = reference_date.strftime(upload_dir)
 
         # Check/create upload_dir
         if not os.path.isdir(upload_dir):
