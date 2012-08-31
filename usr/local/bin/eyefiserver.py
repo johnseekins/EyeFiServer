@@ -215,9 +215,6 @@ def build_soap_response(actionname, items):
         'xmlns',
         'http://localhost/api/soap/eyefilm')
     soapbody_element.appendChild(soapaction_element)
-    # Note that in old version of code, this xmlns attribute was sent only for
-    # StartSessionResponse and GetPhotoStatusResponse
-    # but not for UploadPhotoResponse nor MarkLastPhotoInRollResponse
 
     for key, value in items:
         item_element = doc.createElement(key)
