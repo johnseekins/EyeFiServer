@@ -70,6 +70,9 @@ LOG_FORMAT = '[%(asctime)s][%(funcName)s] - %(message)s'
 # logger doesn't catch exception from do_POST threads and such.
 # So these errors are logged to stderr only, not in log files.
 # Prefer stderr for debugging
+#
+# integritydigest verification can be really slow, so that connection
+# times out.
 
 
 # Create the main logger
@@ -116,13 +119,13 @@ def calculate_tcp_checksum(buf):
 
 def calculate_integritydigest(buf, uploadkey):
     """
-    Compute a CRC for buf & uploadket
+    Compute a CRC for buf & uploadkey
     See IntegrityDigest bellow
     """
     # If the number of bytes I was given is not a multiple of 512
     # pad the input with a null characters to get the proper alignment
-    while len(buf) % 512 != 0:
-        buf = buf + "\x00"
+    # buf = buf.ljust(len(buf) + 511 - (len(buf) - 1) % 512, '\x00')
+    # Deactivated: adding '\0' does not change the sum of ushorts.
 
     counter = 0
 
