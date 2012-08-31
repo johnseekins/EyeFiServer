@@ -380,10 +380,10 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         return build_soap_response('MarkLastPhotoInRollResponse', [])
 
 
-    def uploadPhoto(self, postdata, soapdata, tardata):
+    def uploadPhoto(self, postdata_fragment, soapdata, tardata):
         """
         Handles receiving the actual photograph from the card.
-        postdata will most likely contain multipart binary post data that needs to
+        postdata_fragment will most likely contain multipart binary post data that needs to
         be parsed.
         """
         # Here, tardata is only the first bytes of tar file content
@@ -420,7 +420,8 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         # This is possible because the tar content is at the begining
         if use_date_from_file:
             imagetarfile = tarfile.open(fileobj=StringIO(tardata))
-            imageinfo = imagetarfile.getmembers()[0].get_info(encoding=None, errors=None)
+            tarinfo = imagetarfile.getmembers()[0]
+            imageinfo = tarinfo.get_info(encoding=None, errors=None)
             reference_date = datetime.fromtimestamp(imageinfo['mtime'])
         else:
             reference_date = datetime.now()
@@ -453,21 +454,26 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         tarfilehandle.write(tardata)
         tarsize = len(tardata)
 
+
+        
         # Read remaining POST data
+        received_length = len(postdata_fragment) # size already read
         content_length = int(self.headers.get("content-length"))
         speedtest_starttime = datetime.utcnow()
-        speedtest_startsize = len(postdata)
-        while len(postdata) < content_length:
-            readsize = min(content_length - len(postdata), READ_CHUNK_SIZE)
+        speedtest_startsize = received_length
+        while received_length < content_length:
+            readsize = min(content_length - received_length, READ_CHUNK_SIZE)
             readdata = self.rfile.read(readsize)
             if len(readdata) != readsize:
                 eyeFiLogger.error('Failed to read %s bytes', readsize)
                 self.close_connection = 1
                 return
 
-            # We need to keep a full copy of postdata for integrity
-            # verification
-            postdata += readdata
+            # We need to keep the last received data for integrity verification
+            postdata_fragment += readdata
+            # keep only the last 2kB
+            postdata_fragment = postdata_fragment[-2048:]
+            received_length += len(readdata)
 
             if tarsize < tarfinalsize:
                 if tarsize + len(readdata) <= tarfinalsize:
@@ -486,10 +492,10 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
 
                 eyeFiLogger.debug("%s: Read %s / %s bytes (%02.02f%%) %d kbps",
                     soapdata['filename'],
-                    len(postdata),
+                    received_length,
                     content_length,
-                    len(postdata) * 100. / content_length,
-                    (len(postdata)-speedtest_startsize)/elapsed_seconds/1000*8
+                    received_length * 100. / content_length,
+                    (received_length-speedtest_startsize)/elapsed_seconds/1000*8
                     )
  
                 speedtest_starttime = datetime.utcnow()
@@ -514,9 +520,8 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
             integrity_verification = False
 
         if integrity_verification:
-            # Start postdata parsing again, to get INTEGRITYDIGEST key.
-            # That key is not available until all of postdata is received
-            splited_postdata = self.split_multipart(postdata)
+            # Parse postdata_fragment to get INTEGRITYDIGEST key.
+            splited_postdata = self.split_multipart(postdata_fragment)
 
             try:
                 upload_key = self.server.config.get(macaddress, 'upload_key')
