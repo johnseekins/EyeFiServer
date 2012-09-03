@@ -39,9 +39,11 @@ import array
 import tarfile
 from datetime import datetime, timedelta
 import ConfigParser
+import re
 from optparse import OptionParser
 import cgi
 import logging
+import socket
 import xml.sax
 import xml.dom.minidom
 from BaseHTTPServer import BaseHTTPRequestHandler
@@ -70,9 +72,6 @@ LOG_FORMAT = '[%(asctime)s][%(funcName)s] - %(message)s'
 # logger doesn't catch exception from do_POST threads and such.
 # So these errors are logged to stderr only, not in log files.
 # Prefer stderr for debugging
-#
-# integritydigest verification can be really slow, so that connection
-# times out.
 
 
 # Create the main logger
@@ -85,11 +84,30 @@ class IntegrityDigestFile(file):
     Wrapper around file object
     All write() calls are used to compute a CRC the Eye-Fi way
     """
-    def __init__(self, *args, **kargs):
-        file.__init__(self, *args, **kargs)
+    def __init__(self, name, mode='r'):
+        file.__init__(self, name, mode )
         # Create an array of 2 byte integers
         self.concatenated_tcp_checksums = array.array('H')
         self.todo_buffer = '' # bytes that weren't used yet
+
+
+    def seek(self, position, whence=0):
+        assert whence == 0, \
+            "IntegrityDigestFile does not support seek(whence!=0)"
+        self.concatenated_tcp_checksums = array.array('H')
+        self.todo_buffer = ''
+        file.seek(self, 0)
+        lefttoread = position
+        while True:
+            if lefttoread == 0:
+                return
+            readsize = min(512, lefttoread)
+            buf = self.read(readsize)
+            assert len(buf) == readsize, \
+                "Failed to read %s bytes" % readsize
+            self._diggestpush(buf)
+            lefttoread -= readsize
+
 
     @staticmethod
     def calculate_tcp_checksum(buf):
@@ -128,14 +146,19 @@ class IntegrityDigestFile(file):
 
         return checksum
 
-
-    def write(self, buf):
-        file.write(self, buf)
+    def _diggestpush(self, buf):
+        """
+        Push some bytes in the digest processing mechanism
+        """
         self.todo_buffer += buf
         while (len(self.todo_buffer) > 512):
             tcp_checksum = self.calculate_tcp_checksum(self.todo_buffer[:512])
             self.concatenated_tcp_checksums.append(tcp_checksum)
             self.todo_buffer = self.todo_buffer[512:]
+
+    def write(self, buf):
+        file.write(self, buf)
+        self._diggestpush(buf)
 
 
     def getintegritydigest(self, uploadkey):
@@ -186,6 +209,9 @@ class EyeFiServer(SocketServer.ThreadingMixIn, BaseHTTPServer.HTTPServer):
         # It is important to have a non-null timeout because the card will send
         # empty server discovery packets: These are never closed in a proper
         # way, and would stack forever on the server side.
+        # Note that these discover packets all comes from socketnumber ~ 8000
+        # or 9000. Maybe we should discard them, but then we risk to drop valid
+        # connection atempts.
         connection.settimeout(15)
         return connection, address
 
@@ -220,10 +246,24 @@ def build_soap_response(actionname, items):
         item_element = doc.createElement(key)
         soapaction_element.appendChild(item_element)
 
-        item_elementtext = doc.createTextNode(value)
+        item_elementtext = doc.createTextNode(str(value))
         item_element.appendChild(item_elementtext)
     return doc.toxml(encoding="UTF-8")
 
+
+class EyeFiSession:
+    """
+    Contains data for an HTTP session
+    """
+    def __init__(self, macaddress, cnonce):
+        self.macaddress = macaddress
+        self.cnonce = cnonce
+        self.snonce = '99208c155fc1883579cf0812ec0fe6d2' # random string
+        self.filesignature = None
+        # If a thread is about to time out, some data might not be writen yet
+        # If another thread is picking up a resume transfer, we need to
+        # remember where to start.
+        self.fileoffset = 0
 
 class EyeFiRequestHandler(BaseHTTPRequestHandler):
     """This class is responsible for handling HTTP requests passed to it.
@@ -265,6 +305,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         # Debug dump request:
         eyeFiLogger.debug("%s %s %s",
                           self.command, self.path, self.request_version)
+
         eyeFiLogger.debug("Headers received in POST request:")
         for name, value in self.headers.items():
             eyeFiLogger.debug(name + ": " + value)
@@ -402,54 +443,41 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
             upload_dir = self.server.config.get('EyeFiServer', 'upload_dir')
         upload_dir = os.path.expanduser(upload_dir) # expands ~
 
+        # Remove all the variable part from the dir, and use this as temp
+        # location
+        upload_tmpdir = re.sub('%.', '', upload_dir)
+        # Remove duplicate os.path.sep:
+        regexp = os.path.sep.replace('\\', '\\\\') + '+'
+        upload_tmpdir = re.sub(regexp, os.path.sep, upload_tmpdir)
 
-        # Get date_from_file flag
-        use_date_from_file = False
-        try:
-            use_date_from_file = self.server.config.get(macaddress, 'use_date_from_file')
-        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-            try:
-                use_date_from_file = self.server.config.get('EyeFiServer', 'use_date_from_file')
-            except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-                pass
-
-        # if needed, get reference date from the tar fragment
-        # This is possible because the tar content is at the begining
-        if use_date_from_file:
-            imagetarfile = tarfile.open(fileobj=StringIO(tardata))
-            tarinfo = imagetarfile.getmembers()[0]
-            imageinfo = tarinfo.get_info(encoding=None, errors=None)
-            reference_date = datetime.fromtimestamp(imageinfo['mtime'])
-        else:
-            reference_date = datetime.now()
-
-        # resolves %Y and so inside upload_dir value
-        upload_dir = reference_date.strftime(upload_dir)
-
-        # Check/create upload_dir
-        if not os.path.isdir(upload_dir):
-            os.makedirs(upload_dir)
-            eyeFiLogger.debug("Generated path %s", upload_dir)
+        # Check/create upload_tmpdir
+        if not os.path.isdir(upload_tmpdir):
+            os.makedirs(upload_tmpdir)
+            eyeFiLogger.debug("Generated path %s", upload_tmpdir)
             #if uid!=0 and gid!=0:
-            #    os.chown(upload_dir, uid, gid)
+            #    os.chown(upload_tmpdir, uid, gid)
             #if mode!="":
-            #    os.chmod(upload_dir, string.atoi(mode))
+            #    os.chmod(upload_tmpdir, string.atoi(mode))
 
-        tarpath = os.path.join(upload_dir, soapdata["filename"])
+        tarpath = os.path.join(upload_tmpdir, self.session.filesignature)
 
-        tarfilehandle = IntegrityDigestFile(tarpath, 'wb')
+        if os.path.exists(tarpath):
+            tarfilehandle = IntegrityDigestFile(tarpath, 'r+b')
+        else:
+            tarfilehandle = IntegrityDigestFile(tarpath, 'wb')
+            #if uid!=0 and gid!=0:
+            #    os.chown(tarpath, uid, gid)
+            #if mode!="":
+            #    os.chmod(tarpath, string.atoi(mode))
+
         eyeFiLogger.debug("Opened file %s for binary writing", tarpath)
 
-        #if uid!=0 and gid!=0:
-        #    os.chown(tarpath, uid, gid)
-        #if mode!="":
-        #    os.chmod(tarpath, string.atoi(mode))
-
-
+        tarfilehandle.seek(self.session.fileoffset) # seek in the file
+        tarsize = self.session.fileoffset # size allready there
         tarfinalsize = int(soapdata['filesize']) # size to reach
 
         tarfilehandle.write(tardata)
-        tarsize = len(tardata)
+        tarsize += len(tardata)
 
 
         
@@ -460,11 +488,12 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         speedtest_startsize = received_length
         while received_length < content_length:
             readsize = min(content_length - received_length, READ_CHUNK_SIZE)
+
+            #try:
             readdata = self.rfile.read(readsize)
-            if len(readdata) != readsize:
-                eyeFiLogger.error('Failed to read %s bytes', readsize)
-                self.close_connection = 1
-                return
+            #except socket.timeout:
+            #    readdata = ''
+            #    logging.error('Timout while reading socket')
 
             # We need to keep the last received data for integrity verification
             postdata_fragment += readdata
@@ -479,6 +508,11 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
                 else:
                     tarfilehandle.write(readdata[:tarfinalsize-tarsize])
                     tarsize = tarfinalsize
+
+            if len(readdata) != readsize:
+                eyeFiLogger.error('Failed to read %s bytes', readsize)
+                self.close_connection = 1
+                return uploadphoto_response('false')
 
             if datetime.utcnow() - speedtest_starttime > PROGRESS_FREQUENCY:
                 elapsed_time = datetime.utcnow() - speedtest_starttime
@@ -496,7 +530,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
                     )
  
                 speedtest_starttime = datetime.utcnow()
-                speedtest_startsize = tarsize
+                speedtest_startsize = received_length
 
 
         #pike
@@ -540,11 +574,45 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
                 else:
                     eyeFiLogger.error(
                         "INTEGRITYDIGEST pass failed. File rejected.")
+                    eyeFiLogger.debug("Deleting TAR file %s", tarpath)
+                    os.remove(tarpath)
                     return uploadphoto_response('false')
 
 
-        eyeFiLogger.debug("Extracting TAR file %s", tarpath)
         imagetarfile = tarfile.open(tarpath)
+
+        # Get date_from_file flag
+        use_date_from_file = False
+        try:
+            use_date_from_file = self.server.config.get(macaddress, 'use_date_from_file')
+        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+            try:
+                use_date_from_file = self.server.config.get('EyeFiServer', 'use_date_from_file')
+            except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+                pass
+
+        # if needed, get reference date from the tar fragment
+        # This is possible because the tar content is at the begining
+        if use_date_from_file:
+            tarinfo = imagetarfile.getmembers()[0]
+            imageinfo = tarinfo.get_info(encoding=None, errors=None)
+            reference_date = datetime.fromtimestamp(imageinfo['mtime'])
+        else:
+            reference_date = datetime.now()
+
+        # resolves %Y and so inside upload_dir value
+        upload_dir = reference_date.strftime(upload_dir)
+
+        # Check/create upload_dir
+        if not os.path.isdir(upload_dir):
+            os.makedirs(upload_dir)
+            eyeFiLogger.debug("Generated path %s", upload_dir)
+            #if uid!=0 and gid!=0:
+            #    os.chown(upload_dir, uid, gid)
+            #if mode!="":
+            #    os.chmod(upload_dir, string.atoi(mode))
+
+        eyeFiLogger.debug("Extracting TAR file %s", tarpath)
         imagefilename = imagetarfile.getnames()[0]
         imagetarfile.extractall(path=upload_dir)
 
@@ -570,9 +638,40 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
 
     def getPhotoStatus(self, soapdata):
         "Handles GetPhotoStatus action"
+
+        macaddress = soapdata["macaddress"]
+
+        # Get upload_dir
+        try:
+            upload_dir = self.server.config.get(macaddress, 'upload_dir')
+        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+            upload_dir = self.server.config.get('EyeFiServer', 'upload_dir')
+        upload_dir = os.path.expanduser(upload_dir) # expands ~
+
+        # Remove all the variable part from the dir, and use this as temp
+        # location
+        upload_tmpdir = re.sub('%.', '', upload_dir)
+        # Remove duplicate os.path.sep:
+        regexp = os.path.sep.replace('\\', '\\\\') + '+'
+        upload_tmpdir = re.sub(regexp, os.path.sep, upload_tmpdir)
+
+        self.session.filesignature = soapdata['filesignature']
+        tarpath = os.path.join(upload_tmpdir, soapdata['filesignature'])
+
+        eyeFiLogger.debug('Checking for partial file %s', tarpath)
+        try:
+            offset = os.path.getsize(tarpath)
+        except OSError:
+            offset = 0
+        
+        # This is needed for integrity verification:
+        offset = offset - offset % 512 # Make align on a 512B block
+
+        self.session.fileoffset = offset
+
         return build_soap_response('GetPhotoStatusResponse', [
             ('fileid', '1'),
-            ('offset','0'),
+            ('offset', offset), # How many bytes have already been transfered
             ])
 
 
@@ -580,6 +679,11 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         "Handle startSession requests"
         macaddress = soapdata['macaddress']
         cnonce = soapdata['cnonce']
+
+        if hasattr(self, 'Session'):
+            eyeFiLogger.warning('Overwriting existing session')
+        self.session = EyeFiSession(macaddress, cnonce)
+
         try:
             upload_key = self.server.config.get(macaddress, 'upload_key')
         except ConfigParser.NoSectionError:
@@ -604,7 +708,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
 
         return build_soap_response('StartSessionResponse', [
             ('credential', credential),
-            ('snonce', '99208c155fc1883579cf0812ec0fe6d2'),
+            ('snonce', self.session.snonce),
             ('transfermode', soapdata['transfermode']),
             ('transfermodetimestamp', soapdata['transfermodetimestamp']),
             ('upsyncallowed', 'false'),
