@@ -576,6 +576,14 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
                 eyeFiLogger.error('Failed to read %s bytes', readsize)
                 self.eyefi_close_connection = 1
                 return uploadphoto_response('false')
+            try:
+                isshutdown = self.server._BaseServer__shutdown_request
+            except AttributeError:
+                isshutdown = False
+            if isshutdown:
+                eyeFiLogger.error('Aborting file reception on shutdown request')
+                self.eyefi_close_connection = 1
+                return uploadphoto_response('false')
 
             if datetime.utcnow() - speedtest_starttime > PROGRESS_FREQUENCY:
                 elapsed_time = datetime.utcnow() - speedtest_starttime
