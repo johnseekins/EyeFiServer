@@ -38,7 +38,7 @@ import struct
 import array
 import tarfile
 from datetime import datetime, timedelta
-import ConfigParser
+from ConfigParser import RawConfigParser, NoSectionError, NoOptionError
 import re
 from optparse import OptionParser
 import cgi
@@ -67,7 +67,7 @@ PROGRESS_FREQUENCY = timedelta(0, 1)
 HTTP_SERVER_NAME = 'Eye-Fi Agent/2.0.4.0 (Windows XP SP2)'
 
 # Format of log messages:
-LOG_FORMAT = '[%(asctime)s][%(funcName)s] - %(message)s'
+LOG_FORMAT = '%(asctime)s %(levelname)s %(message)s'
 
 # KNOW BUGS:
 # logger doesn't catch exception from do_POST threads and such.
@@ -299,11 +299,7 @@ class EyeFiSession:
         This is the StartSessionResponse challenge:
         returns md5(macaddress+cnonce+upload_key)
         """
-        try:
-            upload_key = config.get(self.macaddress, 'upload_key')
-        except ConfigParser.NoSectionError:
-            upload_key = config.get('EyeFiServer', 'upload_key')
-
+        upload_key = config.get(self.macaddress, 'upload_key')
         eyeFiLogger.debug("Setting Eye-Fi upload key to %s", upload_key)
 
         credentialstring = self.macaddress + self.cnonce + upload_key
@@ -318,11 +314,7 @@ class EyeFiSession:
         This is the GetPhotoStatus challenge:
         returns md5(macaddress+upload_key+snonce)
         """
-        try:
-            upload_key = config.get(self.macaddress, 'upload_key')
-        except ConfigParser.NoSectionError:
-            upload_key = config.get('EyeFiServer', 'upload_key')
-
+        upload_key = config.get(self.macaddress, 'upload_key')
         eyeFiLogger.debug("Setting Eye-Fi upload key to %s", upload_key)
 
         credentialstring = self.macaddress + upload_key + self.snonce
@@ -514,21 +506,8 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
 
         macaddress = soapdata["macaddress"]
 
-        # Get upload_dir
-        try:
-            upload_dir = self.server.config.get(macaddress, 'upload_dir')
-        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-            upload_dir = self.server.config.get('EyeFiServer', 'upload_dir')
-        upload_dir = os.path.expanduser(upload_dir) # expands ~
-
-        # Remove all the variable part from the dir, and use this as temp
-        # location
-        upload_tmpdir = re.sub('%.', '', upload_dir)
-        # Remove duplicate os.path.sep:
-        regexp = os.path.sep.replace('\\', '\\\\') + '+'
-        upload_tmpdir = re.sub(regexp, os.path.sep, upload_tmpdir)
-
         # Check/create upload_tmpdir
+        upload_tmpdir = self.server.config.getuploaddir(macaddress)
         if not os.path.isdir(upload_tmpdir):
             os.makedirs(upload_tmpdir)
             eyeFiLogger.debug("Generated path %s", upload_tmpdir)
@@ -622,20 +601,14 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         eyeFiLogger.debug("Closed file %s", tarpath)
 
 
-        try:
-            integrity_verification = self.server.config.getboolean(
-                'EyeFiServer', 'integrity_verification')
-        except ConfigParser.NoOptionError:
-            integrity_verification = False
+        integrity_verification = self.server.config.getboolean(
+                macaddress, 'integrity_verification', False)
 
         if integrity_verification:
             # Parse postdata_fragment to get INTEGRITYDIGEST key.
             splited_postdata = self.split_multipart(postdata_fragment)
 
-            try:
-                upload_key = self.server.config.get(macaddress, 'upload_key')
-            except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-                upload_key = self.server.config.get('EyeFiServer', 'upload_key')
+            upload_key = self.server.config.get(macaddress, 'upload_key')
 
             # Perform an integrity check on the file
             verified_digest = tarfilehandle.getintegritydigest(upload_key)
@@ -660,14 +633,8 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         imagetarfile = tarfile.open(tarpath)
 
         # Get date_from_file flag
-        use_date_from_file = False
-        try:
-            use_date_from_file = self.server.config.get(macaddress, 'use_date_from_file')
-        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-            try:
-                use_date_from_file = self.server.config.get('EyeFiServer', 'use_date_from_file')
-            except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-                pass
+        use_date_from_file = self.server.config.get(macaddress,
+            'use_date_from_file', False)
 
         # if needed, get reference date from the tar fragment
         # This is possible because the tar content is at the begining
@@ -678,8 +645,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         else:
             reference_date = datetime.now()
 
-        # resolves %Y and so inside upload_dir value
-        upload_dir = reference_date.strftime(upload_dir)
+        upload_dir = self.server.config.getuploaddir(macaddress, reference_date)
 
         # Check/create upload_dir
         if not os.path.isdir(upload_dir):
@@ -701,10 +667,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         os.remove(tarpath)
 
         # Run a command on the file if specified
-        try:
-            execute_cmd = self.server.config.get('EyeFiServer', 'execute')
-        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-            execute_cmd = None
+        execute_cmd = self.server.config.get(macaddress, 'execute', '')
         if execute_cmd:
             imagepath = os.path.join(upload_dir, imagefilename)
             eyeFiLogger.debug('Executing command "%s %s"',
@@ -734,18 +697,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
             return None
 
         # Get upload_dir
-        try:
-            upload_dir = self.server.config.get(macaddress, 'upload_dir')
-        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-            upload_dir = self.server.config.get('EyeFiServer', 'upload_dir')
-        upload_dir = os.path.expanduser(upload_dir) # expands ~
-
-        # Remove all the variable part from the dir, and use this as temp
-        # location
-        upload_tmpdir = re.sub('%.', '', upload_dir)
-        # Remove duplicate os.path.sep:
-        regexp = os.path.sep.replace('\\', '\\\\') + '+'
-        upload_tmpdir = re.sub(regexp, os.path.sep, upload_tmpdir)
+        upload_tmpdir = self.server.config.getuploaddir(macaddress)
 
         self.session.filesignature = soapdata['filesignature']
         tarpath = os.path.join(upload_tmpdir, soapdata['filesignature'])
@@ -787,25 +739,85 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
             ])
 
 
-def load_config(conffiles):
-    eyeFiLogger.info("Reading config from %s", conffiles)
-    config = ConfigParser.RawConfigParser()
-    config.read(conffiles)
+class EyeFiConfig(RawConfigParser):
+    """
+    Helper wraper around ConfigParser.RawConfigParser
+    Provides get() method with fallback to a global section and default values
+    """
+    def __init__(self, conffiles):
+        RawConfigParser.__init__(self)
+        self.conffiles = conffiles
+        self.read() # immediatly read files
+        self.setloglevel() # set log level
 
-    # (re)set logger verbosity level
-    loglevel = logging.DEBUG
-    try:
-        loglevel = config.get('EyeFiServer', 'loglevel')
+    def read(self, conffiles=None):
+        if conffiles is not None:
+            # changing conffiles list
+            self.conffiles = conffiles
+        eyeFiLogger.info("Reading config from %s", self.conffiles) # FIXME first call
+        RawConfigParser.read(self, self.conffiles)
+
+    
+    def get(self, macaddress, option, default=None):
+        if macaddress:
+            try:
+                return RawConfigParser.get(self, macaddress, option)
+            except (NoSectionError, NoOptionError):
+                pass
+        try:
+            return RawConfigParser.get(self, 'EyeFiServer', option)
+        except (NoSectionError, NoOptionError):
+            pass
+        if default is None:
+            eyeFiLogger.error('You need to define key %s in your config file.' \
+                              ' See eyefi.conf(5)', option)
+            # TODO: raise error and abort/exit
+        return default
+
+
+    def getboolean(self, section, option, default=None):
+        val = self.get(section, option, default)
+        if val.lower() not in self._boolean_states:
+            raise ValueError, 'Not a boolean: %s' % val
+        return self._boolean_states[val.lower()]
+
+
+    def setloglevel(self):
+        """
+        Set global loglevel based on configuration
+        """
+        # (re)set logger verbosity level
+        loglevel = self.get(None, 'loglevel', logging.DEBUG)
         assert loglevel in \
                 ('DEBUG', 'INFO', 'WARN', 'WARNING', 'ERROR', 'FATAL'), \
             'Error in conf file: Invalid loglevel'
         loglevel = eval('logging.'+loglevel)
-    except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-        pass
-    eyeFiLogger.setLevel(loglevel)
+        eyeFiLogger.setLevel(loglevel)
 
-    return config
+    def getuploaddir(self, macaddress, reference_date=None):
+        """
+        Returns the upload directory from the configuration file
+        It can be card specific base on macaddress
+        ~ are expanded to $HOME
+        If refenrence_date is provided, resolved %Y and such, see strftime
+        If refenrence_date is not provided, %Y and such are removed, so that
+        the result is suitable for temporary files.
+        """
+        upload_dir = self.get(macaddress, 'upload_dir', '~/eyefi')
+        upload_dir = os.path.expanduser(upload_dir) # expands ~
 
+        if reference_date is None:
+            # Remove all the variable part from the dir, and use this as temp
+            # location
+            upload_tmpdir = re.sub('%.', '', upload_dir)
+            # Remove duplicate os.path.sep:
+            regexp = os.path.sep.replace('\\', '\\\\') + '+'
+            upload_tmpdir = re.sub(regexp, os.path.sep, upload_tmpdir)
+            return upload_tmpdir
+        else:
+            # resolves %Y and so inside upload_dir value
+            upload_dir = reference_date.strftime(upload_dir)
+            return upload_dir
 
 def main():
     """
@@ -850,14 +862,15 @@ def main():
         """
         That function is called on SIGUP and reload the configuration files.
         """
-        eyefiserver.config = load_config(options.conffiles)
+        eyefiserver.config.read()
+        eyefiserver.config.setloglevel()
     signal.signal(signal.SIGHUP, sighup_handler)
 
     try:
         # Create an instance of an HTTP server. Requests will be handled
         # by the class EyeFiRequestHandler
         eyefiserver = EyeFiServer(SERVER_ADDRESS, EyeFiRequestHandler)
-        eyefiserver.config = load_config(options.conffiles)
+        eyefiserver.config = EyeFiConfig(options.conffiles)
 
         eyeFiLogger.info("Eye-Fi server starts listening on port %s",
                          SERVER_ADDRESS[1])
