@@ -2,7 +2,7 @@
 #
 # $Id$
 #
-# eyefiserver	initscript for eyefiserver.py
+# eyefiserver	initscript for eyefiserver
 #		This file should be placed in /etc/init.d.
 #
 # Original Author: Mattias Holmlund
@@ -29,7 +29,7 @@ set -e
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 DESC="EyeFiServer"
 NAME=eyefiserver
-DAEMON=/usr/local/bin/${NAME}.py
+DAEMON=/usr/local/bin/${NAME}
 CFGFILE=/etc/$NAME.conf
 LOGFILE=/var/log/$NAME.log
 EYEFIUSER=www-data
