@@ -44,6 +44,7 @@ from optparse import OptionParser
 import cgi
 import logging
 import socket
+import random
 import xml.sax
 import xml.dom.minidom
 from BaseHTTPServer import BaseHTTPRequestHandler
@@ -258,12 +259,78 @@ class EyeFiSession:
     def __init__(self, macaddress, cnonce):
         self.macaddress = macaddress
         self.cnonce = cnonce
-        self.snonce = '99208c155fc1883579cf0812ec0fe6d2' # random string
+        self.snonce = self._randomnonce()
         self.filesignature = None
         # If a thread is about to time out, some data might not be writen yet
         # If another thread is picking up a resume transfer, we need to
         # remember where to start.
         self.fileoffset = 0
+
+    @staticmethod
+    def _randomnonce():
+        """
+        Return a random 32 digit hexadecimal value as a string
+        """
+        result = ''
+        for ite in range(8):
+            result += "%04x" % (0xffff * random.random())
+        return result
+
+
+    @staticmethod
+    def _hexmd5(plain):
+        """
+        returns md5(plain) with plain and return values as hexadecimal
+        representations
+        """
+        # Return the binary data represented by the hexadecimal string
+        # resulting in something that looks like "\x00\x18V\x03\x04..."
+        binplain = binascii.unhexlify(plain)
+
+        # Now MD5 hash the binary string
+        md5 = hashlib.md5()
+        md5.update(binplain)
+
+        # Hex encode the hash to obtain the final credential string
+        return md5.hexdigest()
+
+    def getclientcredential(self, config):
+        """
+        This is the StartSessionResponse challenge:
+        returns md5(macaddress+cnonce+upload_key)
+        """
+        try:
+            upload_key = config.get(self.macaddress, 'upload_key')
+        except ConfigParser.NoSectionError:
+            upload_key = config.get('EyeFiServer', 'upload_key')
+
+        eyeFiLogger.debug("Setting Eye-Fi upload key to %s", upload_key)
+
+        credentialstring = self.macaddress + self.cnonce + upload_key
+        eyeFiLogger.debug("Concatenated credential string (pre MD5): %s",
+                          credentialstring)
+
+        return self._hexmd5(credentialstring)
+
+
+    def getservercredential(self, config):
+        """
+        This is the GetPhotoStatus challenge:
+        returns md5(macaddress+upload_key+snonce)
+        """
+        try:
+            upload_key = config.get(self.macaddress, 'upload_key')
+        except ConfigParser.NoSectionError:
+            upload_key = config.get('EyeFiServer', 'upload_key')
+
+        eyeFiLogger.debug("Setting Eye-Fi upload key to %s", upload_key)
+
+        credentialstring = self.macaddress + upload_key + self.snonce
+        eyeFiLogger.debug("Concatenated credential string (pre MD5): %s",
+                          credentialstring)
+
+        return self._hexmd5(credentialstring)
+
 
 class EyeFiRequestHandler(BaseHTTPRequestHandler):
     """This class is responsible for handling HTTP requests passed to it.
@@ -380,7 +447,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
             eyeFiLogger.debug("Upload response: %s", response)
 
         else:
-            logging.error('Unsupported POST request: url="%s"', self.path)
+            eyeFiLogger.error('Unsupported POST request: url="%s"', self.path)
             self.close_connection = 1
             return
 
@@ -392,13 +459,23 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         Sends the response text to the connection in HTTP.
         Close the connection if needed.
         """
-        self.send_response(200)
+        if response is None:
+            self.send_response(500)
+            eyeFiLogger.info('Sending HTTP 500 error code')
+        else:
+            self.send_response(200)
         self.send_header('Date', self.date_time_string())
         self.send_header('Pragma', 'no-cache')
         self.send_header('Server', HTTP_SERVER_NAME)
+        if response is None:
+            self.send_header('Connection', 'Close')
+            self.close_connection = 1
+            return
+
         self.send_header('Content-Type', 'text/xml; charset="utf-8"')
         self.send_header('Content-Length', len(response))
-        if self.headers.get('Connection', '') == 'Keep-Alive':
+        if self.headers.get('Connection', '') == 'Keep-Alive' \
+         and response is not None:
             self.send_header('Connection', 'Keep-Alive')
             eyeFiLogger.debug('Keeping connection alive')
             self.close_connection = 0
@@ -408,7 +485,8 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
             eyeFiLogger.debug('Closing connection')
         self.end_headers()
 
-        self.wfile.write(response)
+        if response is not None:
+            self.wfile.write(response)
         self.wfile.flush()
 
 
@@ -480,7 +558,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         tarsize += len(tardata)
 
 
-        
+
         # Read remaining POST data
         received_length = len(postdata_fragment) # size already read
         content_length = int(self.headers.get("content-length"))
@@ -493,7 +571,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
             readdata = self.rfile.read(readsize)
             #except socket.timeout:
             #    readdata = ''
-            #    logging.error('Timout while reading socket')
+            #    eyeFiLogger.error('Timout while reading socket')
 
             # We need to keep the last received data for integrity verification
             postdata_fragment += readdata
@@ -528,7 +606,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
                     received_length * 100. / content_length,
                     (received_length-speedtest_startsize)/elapsed_seconds/1000*8
                     )
- 
+
                 speedtest_starttime = datetime.utcnow()
                 speedtest_startsize = received_length
 
@@ -639,7 +717,21 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
     def getPhotoStatus(self, soapdata):
         "Handles GetPhotoStatus action"
 
-        macaddress = soapdata["macaddress"]
+        macaddress = soapdata['macaddress']
+        if self.session.macaddress != macaddress:
+            eyeFiLogger.error("GetPhotoStatus uses a macaddress [%s] " \
+               "different that session's one [%]",
+               macaddress, self.session.macaddress)
+            self.close_connection = 1
+            return None
+
+        credential = self.session.getservercredential(self.server.config)
+        if soapdata['credential'] != credential:
+            eyeFiLogger.error('GetPhotoStatus authentication failure:' \
+                "Received credential [%s] != [%s]",
+                soapdata['credential'], credential)
+            self.close_connection = 1
+            return None
 
         # Get upload_dir
         try:
@@ -663,7 +755,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
             offset = os.path.getsize(tarpath)
         except OSError:
             offset = 0
-        
+
         # This is needed for integrity verification:
         offset = offset - offset % 512 # Make align on a 512B block
 
@@ -684,27 +776,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
             eyeFiLogger.warning('Overwriting existing session')
         self.session = EyeFiSession(macaddress, cnonce)
 
-        try:
-            upload_key = self.server.config.get(macaddress, 'upload_key')
-        except ConfigParser.NoSectionError:
-            upload_key = self.server.config.get('EyeFiServer', 'upload_key')
-
-        eyeFiLogger.debug("Setting Eye-Fi upload key to %s", upload_key)
-
-        credentialstring = macaddress + cnonce + upload_key
-        eyeFiLogger.debug("Concatenated credential string (pre MD5): %s",
-                          credentialstring)
-
-        # Return the binary data represented by the hexadecimal string
-        # resulting in something that looks like "\x00\x18V\x03\x04..."
-        binarycredentialstring = binascii.unhexlify(credentialstring)
-
-        # Now MD5 hash the binary string
-        md5 = hashlib.md5()
-        md5.update(binarycredentialstring)
-
-        # Hex encode the hash to obtain the final credential string
-        credential = md5.hexdigest()
+        credential = self.session.getclientcredential(self.server.config)
 
         return build_soap_response('StartSessionResponse', [
             ('credential', credential),
