@@ -618,7 +618,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
 
 
         integrity_verification = self.server.config.getboolean(
-                macaddress, 'integrity_verification', False)
+                macaddress, 'integrity_verification', True)
 
         if integrity_verification:
             # Parse postdata_fragment to get INTEGRITYDIGEST key.
