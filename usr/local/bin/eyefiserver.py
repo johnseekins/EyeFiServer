@@ -749,12 +749,12 @@ class EyeFiConfig(RawConfigParser):
         self.conffiles = conffiles
         self.read() # immediatly read files
         self.setloglevel() # set log level
+        eyeFiLogger.info("Read config from %s", self.conffiles)
 
     def read(self, conffiles=None):
         if conffiles is not None:
             # changing conffiles list
             self.conffiles = conffiles
-        eyeFiLogger.info("Reading config from %s", self.conffiles) # FIXME first call
         RawConfigParser.read(self, self.conffiles)
 
     
@@ -767,11 +767,10 @@ class EyeFiConfig(RawConfigParser):
         try:
             return RawConfigParser.get(self, 'EyeFiServer', option)
         except (NoSectionError, NoOptionError):
-            pass
-        if default is None:
-            eyeFiLogger.error('You need to define key %s in your config file.' \
-                              ' See eyefi.conf(5)', option)
-            # TODO: raise error and abort/exit
+            if default is None:
+                eyeFiLogger.error('You need to define key %s' \
+                    ' in your config file. See eyefi.conf(5)', option)
+                raise
         return default
 
 
@@ -864,6 +863,8 @@ def main():
         """
         eyefiserver.config.read()
         eyefiserver.config.setloglevel()
+        eyeFiLogger.info("Received SIGUP. Reloading config from %s",
+            eyefiserver.config.conffiles)
     signal.signal(signal.SIGHUP, sighup_handler)
 
     try:
