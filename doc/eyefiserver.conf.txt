@@ -38,7 +38,7 @@ execute
 
 	Name of a command to be run after each file download.
 	Exemple on Windows:
-	execute=C:\\Windows\\system32\\mspaint.exe
+	execute=C:\\\\Windows\\\\system32\\\\mspaint.exe
 	Exemple on linux:
 	execute=/usr/bin/display
 
@@ -47,7 +47,7 @@ upload_key
 
 	To use this script you need to have your Eye-Fi upload key.
 	You can find it after configuring the card, which you can currently on do only on windows or mac
-	Windows: see C:\Documents and Settings\<User>\Application Data\Eye-Fi\Settings.xml
+	Windows: see C:\\Documents and Settings\\<User>\\Application Data\\Eye-Fi\\Settings.xml
 	Mac: ~/Applications Data/Eye-Fi/Settings.xml
 
 SEE ALSO
