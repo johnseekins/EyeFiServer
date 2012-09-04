@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 #
 # This is a standalone Eye-Fi Server
 #
@@ -6,6 +7,7 @@
 #  Copyright (c) 2010 Pieter van Kemenade
 #  Copyright (c) 2011 Jeremy Fitzhardinge
 #  Copyright (c) 2011 Grant Nakamura
+#  Copyright (c) 2012 Jean-Michel Nirgal Vourgère
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
