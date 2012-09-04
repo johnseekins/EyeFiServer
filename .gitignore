@@ -1,1 +1,3 @@
 usr/local/bin/*.pyc
+doc/*.1
+doc/*.5

@@ -14,45 +14,63 @@ There is only one compulsory key, the upload_key. See bellow.
 
 KEYS
 
-loglevel
-          
-	This defines the verbosity of the server. Valid values are DEBUG, INFO, WARNING, ERROR and FATAL.
-	Default value is DEBUG.
+loglevel    This defines the verbosity of the server. Valid values are DEBUG, INFO, WARNING, ERROR and FATAL.
+            Default value is DEBUG.
+			This is the one exception to section behavior as this key is only allowed in the [EyeFiServer] global section.
+upload_dir 	This is the location where the files from the Eye-Fi card will be put.
+	        Starting ~ will be replace by user home directory.
+	        %X will be replaced by a datetime fragment according to python time.strftime format: For exemple, on January 1st 2013, running as www-data, upload_dir=~/eyefi/%Y/%Y%m%d will put files in /var/www/eyefi/2013/20130101/
+	        See http://docs.python.org/library/time.html#time.strftime
+	        Default value is ~/eyefi.
+integrity_verification 	
+            This can be On or Off.
+	        When turned Off, it disable file integrity checks.
+	        Default value is On.
+execute     Name of a command to be run after each file download.
+            Exemple on Windows:
+            execute=C:\\\\Windows\\\\system32\\\\mspaint.exe
+            Exemple on linux:
+            execute=/usr/bin/display
+upload_key  To use this script you need to have your Eye-Fi upload key.
+            You can find it after configuring the card, which you can currently on do only on windows or mac
+            Windows: see C:\\Documents and Settings\\<User>\\Application Data\\Eye-Fi\\Settings.xml
+            Mac: ~/Applications Data/Eye-Fi/Settings.xml
+use_date_from_file  
+            This can be On or Off.
+            upload_dir key might contain variable parts such as %Y%m%d, that are replaced by the datetime values.
+            If use_date_from_file is On, the reference date will be the one the picture was taken rather than the transfer date.
 
-upload_dir
+EXEMPLES
+  MINIMAL EXEMPLE
 
-	This is the location where the files from the Eye-Fi card will be put.
-	Starting ~ will be replace by user home directory.
-	%X will be replaced by a datetime fragment according to python time.strftime format.
-	See http://docs.python.org/library/time.html#time.strftime
-	Exemple: /var/www/eyefi/%Y/%Y%m%d
-	Default value is ~/eyefi.
+      [EyeFiServer] 
 
-integrity_verification
+      upload_key=774e46f14990456a9ab7b4d22f1da138
 
-	This can be On or Off.
-	When turned Off, it disable file integrity checks.
-	Default value is On.
+  MULTICARD EXEMPLE
 
-execute
+      [EyeFiServer]
 
-	Name of a command to be run after each file download.
-	Exemple on Windows:
-	execute=C:\\\\Windows\\\\system32\\\\mspaint.exe
-	Exemple on linux:
-	execute=/usr/bin/display
+      loglevel=INFO
 
+      use_date_from_file=On
 
-upload_key
+      [00185650efe9]
 
-	To use this script you need to have your Eye-Fi upload key.
-	You can find it after configuring the card, which you can currently on do only on windows or mac
-	Windows: see C:\\Documents and Settings\\<User>\\Application Data\\Eye-Fi\\Settings.xml
-	Mac: ~/Applications Data/Eye-Fi/Settings.xml
+      upload_key=774e46f14990456a9ab7b4d22f1da138
+
+      upload_dir=/var/www/eyefi/%Y/card1/%Y%m%d
+
+      [00185650efea]
+
+      upload_key=11a3e229084349bc25d97e29393ced1d
+
+      upload_dir=/var/www/eyefi/%Y/card2/%Y%m%d
 
 SEE ALSO
 eyefiserver(1)
 
 AUTHORS
 eyefiserver was written by Jeffrey Tchang.
+
 This manual page was written by Jean-Michel Vourgère.
