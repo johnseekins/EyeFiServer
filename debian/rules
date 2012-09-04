@@ -1,0 +1,14 @@
+#!/usr/bin/make -f
+DH_VERBOSE=1
+%:
+	dh $@
+
+override_dh_auto_build:
+	txt2man -t eyefiserver -s 1 debian/eyefiserver.txt > debian/eyefiserver.1
+
+override_dh_install:
+	dh_install
+	# Debian Policy Manual section 10.4:
+	# Scripts in PATH should not have a language extension
+	mkdir -p debian/eyefiserver/usr/bin
+	cp usr/local/bin/eyefiserver.py debian/eyefiserver/usr/bin/eyefiserver

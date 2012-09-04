@@ -1,0 +1,5 @@
+eyefiserver (0.1+git20120823-1) UNRELEASED; urgency=low
+
+  * Initial release. (Closes: #680879)
+
+ -- Jean-Michel Vourgère <jmv_deb@nirgal.com>  Wed, 11 Jul 2012 04:19:17 +0200
