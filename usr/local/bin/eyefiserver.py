@@ -329,6 +329,14 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
     It implements the common HTTP method do_POST()"""
 
 
+    def __init__(self, *args, **kargs):
+        # We need a way to force self.close_connection:
+        self.eyefi_close_connection = False
+        self.session = None
+        # For some obscure reason, BaseHTTPRequestHandler.__init__ need to be
+        # called last:
+        BaseHTTPRequestHandler.__init__(self, *args, **kargs)
+
     def split_multipart(self, postdata):
         """
         Takes a EyeFi http posted data
@@ -376,7 +384,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         postdata = self.rfile.read(readsize)
         if len(postdata) != readsize:
             eyeFiLogger.error('Failed to read %s bytes', readsize)
-            self.close_connection = 1
+            self.send_eyefi_response(None)
             return
 
         splited_postdata = self.split_multipart(postdata)
@@ -398,7 +406,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
                 soapaction = soapaction[5:-1]
             else:
                 eyeFiLogger.error('soapaction should have format "urn:action"')
-                self.close_connection = 1
+                self.send_eyefi_response(None)
                 return
 
             eyeFiLogger.info("Got request %s(%s)", soapaction, ", ".join(
@@ -421,7 +429,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
 
             else:
                 eyeFiLogger.error('Unsupported soap action %s', soapaction)
-                self.close_connection = 1
+                self.send_eyefi_response(None)
                 return
 
             eyeFiLogger.debug("%s response: %s", soapaction, response)
@@ -440,7 +448,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
 
         else:
             eyeFiLogger.error('Unsupported POST request: url="%s"', self.path)
-            self.close_connection = 1
+            self.send_eyefi_response(None)
             return
 
         self.send_eyefi_response(response)
@@ -461,19 +469,17 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         self.send_header('Server', HTTP_SERVER_NAME)
         if response is None:
             self.send_header('Connection', 'Close')
-            self.close_connection = 1
             return
 
         self.send_header('Content-Type', 'text/xml; charset="utf-8"')
         self.send_header('Content-Length', len(response))
         if self.headers.get('Connection', '') == 'Keep-Alive' \
-         and response is not None:
+         and response is not None \
+         and not self.eyefi_close_connection:
             self.send_header('Connection', 'Keep-Alive')
             eyeFiLogger.debug('Keeping connection alive')
-            self.close_connection = 0
         else:
             self.send_header('Connection', 'Close')
-            self.close_connection = 1
             eyeFiLogger.debug('Closing connection')
         self.end_headers()
 
@@ -546,11 +552,11 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         while received_length < content_length:
             readsize = min(content_length - received_length, READ_CHUNK_SIZE)
 
-            #try:
-            readdata = self.rfile.read(readsize)
-            #except socket.timeout:
-            #    readdata = ''
-            #    eyeFiLogger.error('Timout while reading socket')
+            try:
+                readdata = self.rfile.read(readsize)
+            except socket.timeout:
+                readdata = ''
+                eyeFiLogger.error('Timout while reading socket')
 
             # We need to keep the last received data for integrity verification
             postdata_fragment += readdata
@@ -568,7 +574,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
 
             if len(readdata) != readsize:
                 eyeFiLogger.error('Failed to read %s bytes', readsize)
-                self.close_connection = 1
+                self.eyefi_close_connection = 1
                 return uploadphoto_response('false')
 
             if datetime.utcnow() - speedtest_starttime > PROGRESS_FREQUENCY:
@@ -685,7 +691,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
             eyeFiLogger.error("GetPhotoStatus uses a macaddress [%s] " \
                "different that session's one [%]",
                macaddress, self.session.macaddress)
-            self.close_connection = 1
+            self.eyefi_close_connection = 1
             return None
 
         credential = self.session.getservercredential(self.server.config)
@@ -693,7 +699,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
             eyeFiLogger.error('GetPhotoStatus authentication failure:' \
                 "Received credential [%s] != [%s]",
                 soapdata['credential'], credential)
-            self.close_connection = 1
+            self.eyefi_close_connection = 1
             return None
 
         # Get upload_dir
@@ -724,7 +730,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         macaddress = soapdata['macaddress']
         cnonce = soapdata['cnonce']
 
-        if hasattr(self, 'Session'):
+        if self.session is not None:
             eyeFiLogger.warning('Overwriting existing session')
         self.session = EyeFiSession(macaddress, cnonce)
 
@@ -751,13 +757,14 @@ class EyeFiConfig(RawConfigParser):
         self.setloglevel() # set log level
         eyeFiLogger.info("Read config from %s", self.conffiles)
 
+
     def read(self, conffiles=None):
         if conffiles is not None:
             # changing conffiles list
             self.conffiles = conffiles
         RawConfigParser.read(self, self.conffiles)
 
-    
+
     def get(self, macaddress, option, default=None):
         if macaddress:
             try:
