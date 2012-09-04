@@ -44,6 +44,12 @@ You must search for it and paste it in eyefiserver.conf. Then server needs to be
 reloaded after editing that file.
 
 
+MAN PAGES
+---------
+Packagers can generate man pages using txt2man utility:
+txt2man -t eyefiserver -s 1 doc/eyefiserver.txt > doc/eyefiserver.1
+txt2man -t eyefiserver.conf -s 5 doc/eyefiserver.conf.txt > doc/eyefiserver.conf.5
+
 LICENSE
 -------
 

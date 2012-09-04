@@ -1,0 +1,58 @@
+NAME
+eyefiserver.conf - Settings file for eyefiserver
+
+DESCRIPTION
+/etc/eyefiserver.conf is organised in sections whose name are enclosed in brackets.
+
+The global section is named [EyeFiServer]. The names of the other optionnal sections are the MAC address of the Eye-Fi card. The macaddress must be in lower case and without dashes. For exemple, if your card has a MAC address 00-18-56-50-ef-f9, the section should be named [00185650eff9].
+
+All keys described bellow are searched first in the section specific to the Eye-Fi card, then, if not found, it is search in the global [EyeFiServer] section.
+
+You don't need card specific section if you have only one Eye-Fi card.
+
+There is only one compulsory key, the upload_key. See bellow.
+
+KEYS
+
+loglevel
+          
+	This defines the verbosity of the server. Valid values are DEBUG, INFO, WARNING, ERROR and FATAL.
+	Default value is DEBUG.
+
+upload_dir
+
+	This is the location where the files from the Eye-Fi card will be put.
+	Starting ~ will be replace by user home directory.
+	%X will be replaced by a datetime fragment according to python time.strftime format.
+	See http://docs.python.org/library/time.html#time.strftime
+	Exemple: /var/www/eyefi/%Y/%Y%m%d
+	Default value is ~/eyefi.
+
+integrity_verification
+
+	This can be On or Off.
+	When turned Off, it disable file integrity checks.
+	Default value is On.
+
+execute
+
+	Name of a command to be run after each file download.
+	Exemple on Windows:
+	execute=C:\\Windows\\system32\\mspaint.exe
+	Exemple on linux:
+	execute=/usr/bin/display
+
+
+upload_key
+
+	To use this script you need to have your Eye-Fi upload key.
+	You can find it after configuring the card, which you can currently on do only on windows or mac
+	Windows: see C:\Documents and Settings\<User>\Application Data\Eye-Fi\Settings.xml
+	Mac: ~/Applications Data/Eye-Fi/Settings.xml
+
+SEE ALSO
+eyefiserver(1)
+
+AUTHORS
+eyefiserver was written by Jeffrey Tchang.
+This manual page was written by Jean-Michel Vourgère.

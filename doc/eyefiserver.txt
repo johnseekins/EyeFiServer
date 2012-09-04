@@ -18,6 +18,9 @@ FILES
 
 /var/log/eyefiserver.log
 
+SEE ALSO
+eyefiserver.conf(5)
+
 AUTHORS
 eyefiserver was written by Jeffrey Tchang.
 This manual page was written by Jean-Michel Vourgère for the Debian project (but may be used by others).
