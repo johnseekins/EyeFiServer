@@ -841,7 +841,7 @@ def main():
     """
     parser = OptionParser(usage='%prog [options]')
     parser.add_option('--conf',
-        action='append', dest='conffiles', metavar='conffile',
+        action='append', dest='conffiles', metavar='CONFFILE',
         help='specific alternate location for configuration file. ' \
            + 'default=%default',
         default=['/etc/eyefiserver.conf',

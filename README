@@ -5,22 +5,27 @@ INSTALLATION
 Structure of this package :
 
         .
-        |-- etc
+        |-- etc/
         |   |-- eyefiserver.conf
-        |   `-- init.d
+        |   `-- init.d/
         |       `-- eyefiserver
-        |-- usr
-        |   `-- local
-        |       `-- bin
-        |           `-- eyefiserver.py
-        `-- var
-            `-- log
+        |-- usr/
+        |   `-- local/
+        |       |-- bin/
+        |       |   `-- eyefiserver.py
+        |       `-- share/
+        |           \-- man/
+        |               |-- man1/
+        |               |   `-- eyefiserver.1
+        |               `-- man5/
+        |                   `-- eyefiserver.conf.5
+        `-- var/
+            `-- log/
                 `-- eyefiserver.log
-
 
 If you're familiar with linux, that basically sums it up :-)
 
-You need to copy the files in the right place
+You need to copy the files in the right place.
 
 Optionally add stuff to your start-stop sequence. On debian/ubuntu, use
 update-rc.d:
@@ -36,19 +41,22 @@ You can find it after configuring the card, which you can currently on do only
 on Windows or Mac:
 
 On Windows:
- see C:\Documents and Settings\<User>\Application Data\Eye-Fi\Settings.xml
+ See C:\Documents and Settings\<User>\Application Data\Eye-Fi\Settings.xml
 On Mac:
- see ~/Applications Data/Eye-Fi/Settings.xml
+ See ~/Applications Data/Eye-Fi/Settings.xml
 
 You must search for it and paste it in eyefiserver.conf. Then server needs to be
 reloaded after editing that file.
 
+See manual for a full description of options.
+
 
 MAN PAGES
 ---------
-Packagers can generate man pages using txt2man utility:
-txt2man -t eyefiserver -s 1 doc/eyefiserver.txt > doc/eyefiserver.1
-txt2man -t eyefiserver.conf -s 5 doc/eyefiserver.conf.txt > doc/eyefiserver.conf.5
+Man pages can be generated using txt2man utility:
+txt2man -t eyefiserver -r eyefiserver -s 1 -v "Executable programs or shell commands" -I file doc/eyefiserver.txt > doc/eyefiserver.1
+txt2man -t eyefiserver.conf -r eyefiserver -s 5 -v "File formats and conventions" doc/eyefiserver.conf.txt > doc/eyefiserver.conf.5
+
 
 LICENSE
 -------
