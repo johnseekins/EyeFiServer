@@ -30,7 +30,6 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 DESC="EyeFiServer"
 NAME=eyefiserver
 DAEMON=/usr/local/bin/${NAME}
-CFGFILE=/etc/$NAME.conf
 LOGFILE=/var/log/$NAME.log
 EYEFIUSER=www-data
 EYEFIGROUP=www-data
@@ -50,7 +49,7 @@ d_start() {
 		--startas $DAEMON \
 		--background \
 		--make-pidfile \
-		-- --conf $CFGFILE --log $LOGFILE
+		-- --log $LOGFILE
 }
 
 

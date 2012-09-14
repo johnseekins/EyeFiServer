@@ -28,31 +28,41 @@ upload_key
        Windows: see C:\\Documents and Settings\\<User>\\Application Data\\Eye-Fi\\Settings.xml
 
        Mac: ~/Applications Data/Eye-Fi/Settings.xml
-upload_dir 	
+upload_dir  
        This is the location where the files from the Eye-Fi card will be put.
 
        Starting ~ will be replaced by user home directory.
-	        
+        
        %X will be replaced by a datetime fragment according to python time.strftime format: For exemple, on January 1st 2013, running as www-data, upload_dir=~/eyefi/%Y/%Y%m%d will put files in /var/www/eyefi/2013/20130101/. See http://docs.python.org/library/time.html#time.strftime.
 
        Default value is ~/eyefi.
-execute  
+complete_execute  
        Name of a command to be run after each file download.
 
        Example on Windows:
 
-       execute=C:\\Windows\\system32\\mspaint.exe
+       complete_execute=C:\\Windows\\system32\\mspaint.exe
 
        Example on Linux:
 
-       execute=/usr/bin/display
+       complete_execute=/usr/bin/display
+progress_execute  
+       This parameter executes the specified command every few seconds while file is beeing received.
+
+       Parameters of the called program:
+
+       $1: the full file path of the temporary TAR file. Thumbnail can be extracted from the partial file.
+
+       $2: final tar size in bytes
+
+       $3: speed in bps
 use_date_from_file  
        This can be On or Off.
 
        upload_dir key might contain variable parts such as %Y%m%d, that are replaced by the datetime values.
 
        If use_date_from_file is On, the reference date will be the one the picture was taken rather than the transfer date.
-integrity_verification 	
+integrity_verification  
        This can be On or Off.
 
        When turned Off, it disables file integrity checks. This used to be necessary when downloading large files, because the algorithm was so slow that timeout occured. This should no longer be the case.
@@ -82,6 +92,21 @@ EXAMPLES
       upload_key=11a3e229084349bc25d97e29393ced1d
 
       upload_dir=/var/www/eyefi/%Y/card2/%Y%m%d
+
+  PROGRESS METER
+      #!/bin/bash
+
+      # That file is an exemple for progress_execute target
+
+      # It requieres X server access, run eyefiserver as a regular user
+
+      FILENAME=$1
+      
+      TARGETSIZE=$2
+      
+      SPEED=$3
+
+      notify-send -u low "Receiving $FILENAME" "Speed: $SPEED bps"
 
 AUTHORS
 eyefiserver was written by Jeffrey Tchang.
