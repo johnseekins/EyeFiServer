@@ -805,6 +805,8 @@ class EyeFiConfig(RawConfigParser):
 
     def getboolean(self, section, option, default=None):
         val = self.get(section, option, default)
+        if isinstance(val, bool):
+            return val
         if val.lower() not in self._boolean_states:
             raise ValueError, 'Not a boolean: %s' % val
         return self._boolean_states[val.lower()]
