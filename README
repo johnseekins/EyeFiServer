@@ -10,18 +10,15 @@ Structure of this package :
         |   `-- init.d/
         |       `-- eyefiserver
         |-- usr/
-        |   `-- local/
-        |       |-- bin/
-        |       |   `-- eyefiserver.py
-        |       `-- share/
-        |           \-- man/
-        |               |-- man1/
-        |               |   `-- eyefiserver.1
-        |               `-- man5/
-        |                   `-- eyefiserver.conf.5
-        `-- var/
-            `-- log/
-                `-- eyefiserver.log
+            `-- local/
+                |-- bin/
+                |   `-- eyefiserver
+                `-- share/
+                    \-- man/
+                        |-- man1/
+                        |   `-- eyefiserver.1
+                        `-- man5/
+                            `-- eyefiserver.conf.5
 
 If you're familiar with linux, that basically sums it up :-)
 
