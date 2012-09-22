@@ -517,7 +517,15 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         # Check/create upload_tmpdir
         upload_tmpdir = self.server.config.getuploaddir(macaddress)
         if not os.path.isdir(upload_tmpdir):
-            os.makedirs(upload_tmpdir)
+            try:
+                os.makedirs(upload_tmpdir)
+            except OSError as err:
+                # This is what you get when upload_dir is not writable.
+                eyeFiLogger.critical("Can't create directory. %s. "
+                                + "Do check write permissions.",
+                    err)
+                self.eyefi_close_connection = 1
+                return uploadphoto_response('true')
             eyeFiLogger.debug("Generated path %s", upload_tmpdir)
             #if uid!=0 and gid!=0:
             #    os.chown(upload_tmpdir, uid, gid)
@@ -525,15 +533,23 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
             #    os.chmod(upload_tmpdir, string.atoi(mode))
 
         tarpath = os.path.join(upload_tmpdir, self.session.filesignature)
-
         if os.path.exists(tarpath):
-            tarfilehandle = IntegrityDigestFile(tarpath, 'r+b')
+            writemode = 'r+b'
         else:
-            tarfilehandle = IntegrityDigestFile(tarpath, 'wb')
-            #if uid!=0 and gid!=0:
-            #    os.chown(tarpath, uid, gid)
-            #if mode!="":
-            #    os.chmod(tarpath, string.atoi(mode))
+            writemode = 'wb'
+        try:
+            tarfilehandle = IntegrityDigestFile(tarpath, writemode)
+        except IOError as err:
+            # This is what you get when upload_dir is not writable.
+            eyeFiLogger.critical("Can't open file %s mode %s: %s. "
+                            + "Do check write permissions.",
+                tarpath, writemode, err)
+            self.eyefi_close_connection = 1
+            return uploadphoto_response('true')
+        #if uid!=0 and gid!=0:
+        #    os.chown(tarpath, uid, gid)
+        #if mode!="":
+        #    os.chmod(tarpath, string.atoi(mode))
 
         eyeFiLogger.debug("Opened file %s for binary writing", tarpath)
 
@@ -798,7 +814,7 @@ class EyeFiConfig(RawConfigParser):
         except (NoSectionError, NoOptionError):
             if default is None:
                 eyeFiLogger.error('You need to define key %s' \
-                    ' in your config file. See eyefi.conf(5)', option)
+                    ' in your config file. See eyefiserver.conf(5)', option)
                 raise
         return default
 
