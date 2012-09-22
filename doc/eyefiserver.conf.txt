@@ -4,7 +4,7 @@ eyefiserver.conf - Settings file for eyefiserver
 DESCRIPTION
 /etc/eyefiserver.conf is organised in sections whose name are enclosed in brackets.
 
-The global section is named [EyeFiServer]. The names of the other optionnal sections are the MAC address of the Eye-Fi card. The macaddress must be in lower case and without dashes. For example, if your card has a MAC address 00-18-56-50-EF-F9, the section should be named [00185650eff9].
+The global section is named [EyeFiServer]. The names of the other optional sections are the MAC address of the Eye-Fi card. The macaddress must be in lower case and without dashes. For example, if your card has a MAC address 00-18-56-50-EF-F9, the section should be named [00185650eff9].
 
 All keys described bellow are searched first in the section specific to the Eye-Fi card, then, if not found, it is search in the global [EyeFiServer] section. This means you can set up a global default value, then override it for a few specific cards.
 
@@ -47,7 +47,7 @@ complete_execute
 
        complete_execute=/usr/bin/display
 progress_execute  
-       This parameter executes the specified command every few seconds while file is beeing received.
+       This parameter executes the specified command every few seconds while file is being received.
 
        Parameters of the called program:
 
@@ -65,7 +65,7 @@ use_date_from_file
 integrity_verification  
        This can be On or Off.
 
-       When turned Off, it disables file integrity checks. This used to be necessary when downloading large files, because the algorithm was so slow that timeout occured. This should no longer be the case.
+       When turned Off, it disables file integrity checks. This used to be necessary when downloading large files, because the algorithm was so slow that timeout occurred. This should no longer be the case.
 
        Default value is On.
 EXAMPLES
@@ -96,9 +96,9 @@ EXAMPLES
   PROGRESS METER
       #!/bin/bash
 
-      # That file is an exemple for progress_execute target
+      # That file is an example for progress_execute target
 
-      # It requieres X server access, run eyefiserver as a regular user
+      # It requires X server access, run eyefiserver as a regular user
 
       FILENAME=$1
       
