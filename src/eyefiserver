@@ -525,7 +525,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
                                 + "Do check write permissions.",
                     err)
                 self.eyefi_close_connection = 1
-                return uploadphoto_response('true')
+                return uploadphoto_response('false')
             eyeFiLogger.debug("Generated path %s", upload_tmpdir)
             #if uid!=0 and gid!=0:
             #    os.chown(upload_tmpdir, uid, gid)
@@ -545,7 +545,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
                             + "Do check write permissions.",
                 tarpath, writemode, err)
             self.eyefi_close_connection = 1
-            return uploadphoto_response('true')
+            return uploadphoto_response('false')
         #if uid!=0 and gid!=0:
         #    os.chown(tarpath, uid, gid)
         #if mode!="":
