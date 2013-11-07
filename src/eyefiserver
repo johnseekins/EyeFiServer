@@ -867,7 +867,7 @@ class EyeFiConfig(RawConfigParser):
             return upload_dir
 
 class EyeFiRunner():
-        def run():
+        def run(self):
             try:
                 # Create an instance of an HTTP server. Requests will be handled
                 # by the class EyeFiRequestHandler
@@ -890,41 +890,26 @@ class EyeFiRunner():
                 eyefiserver.shutdown()
                 eyeFiLogger.info("Waiting for threads to finish.")
 
-        def main():
-            def sighup_handler(signo, frm):
-                """
-                That function is called on SIGUP and reload the configuration files.
-                """
-                eyefiserver.config.read()
-                eyefiserver.config.setloglevel()
-                eyeFiLogger.info("Received SIGUP. Reloading config from %s",
-                    eyefiserver.config.conffiles)
-            signal.signal(signal.SIGHUP, sighup_handler)
+        def sighup_handler(self, signo, frm):
+            """
+            That function is called on SIGUP and reload the configuration files.
+            """
+            eyefiserver.config.read()
+            eyefiserver.config.setloglevel()
+            eyeFiLogger.info("Received SIGUP. Reloading config from %s",
+                eyefiserver.config.conffiles)
+
+        def __init__(self, options):
+            signal.signal(signal.SIGHUP, self.sighup_handler)
             """
             Main function
             """
-            parser = argparse.ArgumentParser(usage='%prog [options]')
-            parser.add_argument('--conf',
-                action='append', dest='conffiles', metavar='CONFFILE',
-                help='specific alternate location for configuration file. ' \
-                   + 'default=%default',
-                default=['/etc/eyefiserver.conf',
-                         os.path.expanduser('~/eyefiserver.conf'),
-                         '%s/eyefiserver.conf' % os.getcwd()])
-            parser.add_argument('--log', dest='logfile',
-                help='log to file')
-            parser.add_argument('--daemon', '-d', action='store_true',
-                dest='daemon', help='daemonize!')
-            options = parser.parse_args()
             
             # Create two handlers. One to print to the log and one to print to the
             # console based on the effective level of logging
             loggingformater = logging.Formatter(LOG_FORMAT)
             # If we're forking the process, we really shouldn't be printing to stdout or stderr
-            if options.daemon:
-                with daemon.DaemonContext():
-                    main_loop()
-            else:
+            if not options.daemon:
                 consolehandler = logging.StreamHandler(sys.stderr)
                 # Set how both handlers will print the pretty log events
                 consolehandler.setFormatter(loggingformater)
@@ -939,9 +924,30 @@ class EyeFiRunner():
             # run webserver as www-data - cant get it working
             #if config.get('EyeFiServer', 'user_id')!='':
             #    os.setuid(config.getint('EyeFiServer', 'user_id'))
-            main_loop()
+
+def cli_opts():
+    parser = argparse.ArgumentParser(usage='%prog [options]')
+    parser.add_argument('--conf',
+        action='append', dest='conffiles', metavar='CONFFILE',
+        help='specific alternate location for configuration file. ' \
+           + 'default=%default',
+        default=['/etc/eyefiserver.conf',
+                 os.path.expanduser('~/eyefiserver.conf'),
+                 '%s/eyefiserver.conf' % os.getcwd()])
+    parser.add_argument('--log', dest='logfile',
+        help='log to file')
+    parser.add_argument('--daemon', '-d', action='store_true',
+        dest='daemon', help='daemonize!')
+    return parser.parse_args()
 
 if __name__ == '__main__':
-    main()
+    options = cli_opts()
+
+    app = EyeFiRunner(options)
+    if options.daemon:
+        daemon_runner = runner.DaemonRunner(app)
+        daemon_runner.do_action()
+    else:
+        EyeFiRunner.run()
 
 # ex: expandtab tabstop=4 syntax=python
