@@ -877,7 +877,8 @@ def main():
         help='specific alternate location for configuration file. ' \
            + 'default=%default',
         default=['/etc/eyefiserver.conf',
-                 os.path.expanduser('~/eyefiserver.conf')])
+                 os.path.expanduser('~/eyefiserver.conf'),
+                 '%s/eyefiserver.conf' % os.getcwd()])
     parser.add_argument('--log', dest='logfile',
         help='log to file')
     options = parser.parse_args()
