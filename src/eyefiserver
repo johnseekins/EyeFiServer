@@ -42,7 +42,7 @@ import tarfile
 from datetime import datetime, timedelta
 from ConfigParser import RawConfigParser, NoSectionError, NoOptionError
 import re
-from optparse import OptionParser
+import argparse
 import cgi
 import logging
 import socket
@@ -869,38 +869,38 @@ def main():
     """
     Main function
     """
-    parser = OptionParser(usage='%prog [options]')
-    parser.add_option('--conf',
+    parser = argparse.ArgumentParser(usage='%prog [options]')
+    parser.add_argument('--conf',
         action='append', dest='conffiles', metavar='CONFFILE',
         help='specific alternate location for configuration file. ' \
            + 'default=%default',
         default=['/etc/eyefiserver.conf',
                  os.path.expanduser('~/eyefiserver.conf'),
                  '%s/eyefiserver.conf' % os.getcwd()])
-    parser.add_option('--log', dest='logfile',
+    parser.add_argument('--log', dest='logfile',
         help='log to file')
-    options, args = parser.parse_args()
-
-    if args:
-        parser.error("That program takes no parameter.")
-
+    parser.add_argument('--daemon', '-d', action='store_true',
+        dest='daemon', help='daemonize!')
+    options = parser.parse_args()
+    
     # Create two handlers. One to print to the log and one to print to the
-    # console
-    consolehandler = logging.StreamHandler(sys.stderr)
-
-    # Set how both handlers will print the pretty log events
+    # console based on the effective level of logging
     loggingformater = logging.Formatter(LOG_FORMAT)
-    consolehandler.setFormatter(loggingformater)
-
-    # Append both handlers to the main Eye Fi Server logger
-    eyeFiLogger.addHandler(consolehandler)
-
+    # If we're forking the process, we really shouldn't be printing to stdout or stderr
+    if options.daemon:
+        eyeFiLogger.setLevel(logging.INFO)
+    else:
+        consolehandler = logging.StreamHandler(sys.stderr)
+        # Set how both handlers will print the pretty log events
+        consolehandler.setFormatter(loggingformater)
+        # Append both handlers to the main Eye Fi Server logger
+        eyeFiLogger.addHandler(consolehandler)
     # open file logging
     if options.logfile:
         filehandler = logging.FileHandler(options.logfile, "w", encoding=None)
         filehandler.setFormatter(loggingformater)
         eyeFiLogger.addHandler(filehandler)
-
+    
     # run webserver as www-data - cant get it working
     #if config.get('EyeFiServer', 'user_id')!='':
     #    os.setuid(config.getint('EyeFiServer', 'user_id'))
