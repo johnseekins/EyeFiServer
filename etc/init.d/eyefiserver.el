@@ -41,7 +41,7 @@ DAEMON="${PSNAME} /usr/local/bin/${NAME}"
 #	Function that starts the daemon/service.
 #
 d_start() {
-	daemonize --pidfile $PIDFILE $DAEMON $DAEMONARGS
+	daemon --pidfile $PIDFILE $DAEMON $DAEMONARGS
 }
 
 
