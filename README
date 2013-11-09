@@ -8,7 +8,8 @@ Structure of this package :
         |-- etc/
         |   |-- eyefiserver.conf
         |   `-- init.d/
-        |       `-- eyefiserver
+        |       `-- eyefiserver.debian
+        |       `-- eyefiserver.el
         |-- usr/
             `-- local/
                 |-- bin/
