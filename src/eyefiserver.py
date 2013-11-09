@@ -290,7 +290,7 @@ class EyeFiSession:
         This is the StartSessionResponse challenge:
         returns md5(macaddress+cnonce+upload_key)
         """
-        upload_key = config.get(self.macaddress, 'upload_key')
+        upload_key = config.get_key(self.macaddress, 'upload_key')
         eyeFiLogger.debug("Setting Eye-Fi upload key to %s", upload_key)
 
         credentialstring = self.macaddress + self.cnonce + upload_key
@@ -304,7 +304,7 @@ class EyeFiSession:
         This is the GetPhotoStatus challenge:
         returns md5(macaddress+upload_key+snonce)
         """
-        upload_key = config.get(self.macaddress, 'upload_key')
+        upload_key = config.get_key(self.macaddress, 'upload_key')
         eyeFiLogger.debug("Setting Eye-Fi upload key to %s", upload_key)
 
         credentialstring = self.macaddress + upload_key + self.snonce
@@ -603,7 +603,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
                 speedtest_startsize = received_length
 
                 # Run a command on the file if specified
-                execute_cmd = self.server.config.get(macaddress,
+                execute_cmd = self.server.config.get_key(macaddress,
                                                      'progress_execute', '')
                 if execute_cmd:
                     execute_cmd = [execute_cmd,
@@ -617,7 +617,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         #pike
         #uid = self.server.config.getint('EyeFiServer', 'upload_uid')
         #gid = self.server.config.getint('EyeFiServer', 'upload_gid')
-        #mode = self.server.config.get('EyeFiServer', 'upload_mode')
+        #mode = self.server.config.get_key('EyeFiServer', 'upload_mode')
         #eyeFiLogger.debug("Using uid/gid %d/%d"%(uid, gid))
         #eyeFiLogger.debug("Using mode %s", mode)
 
@@ -632,7 +632,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
             # Parse postdata_fragment to get INTEGRITYDIGEST key.
             splited_postdata = self.split_multipart(postdata_fragment)
 
-            upload_key = self.server.config.get(macaddress, 'upload_key')
+            upload_key = self.server.config.get_key(macaddress, 'upload_key')
 
             # Perform an integrity check on the file
             verified_digest = tarfilehandle.getintegritydigest(upload_key)
@@ -656,7 +656,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         imagetarfile = tarfile.open(tarpath)
 
         # Get date_from_file flag
-        use_date_from_file = self.server.config.get(macaddress,
+        use_date_from_file = self.server.config.get_key(macaddress,
             'use_date_from_file', False)
 
         # if needed, get reference date from the tar fragment
@@ -690,7 +690,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         os.remove(tarpath)
 
         # Run a command on the file if specified
-        execute_cmd = self.server.config.get(macaddress, 'complete_execute', '')
+        execute_cmd = self.server.config.get_key(macaddress, 'complete_execute', '')
         if execute_cmd:
             imagepath = os.path.join(upload_dir, imagefilename)
             eyeFiLogger.debug('Executing command "%s %s"',
@@ -766,25 +766,18 @@ class EyeFiConfig(RawConfigParser):
     """
     def __init__(self, conffiles):
         RawConfigParser.__init__(self)
-        self.conffiles = conffiles
-        self.read() # immediatly read files
+        self.read(conffiles) # immediatly read files
         self.setloglevel() # set log level
-        eyeFiLogger.info("Read config from %s", self.conffiles)
+        eyeFiLogger.info("Read config from %s", conffiles)
 
-    def read(self, conffiles=None):
-        if conffiles is not None:
-            # changing conffiles list
-            self.conffiles = conffiles
-        RawConfigParser.read(self, self.conffiles)
-
-    def get(self, macaddress, option, default=None):
+    def get_key(self, macaddress, option, default=None):
         if macaddress:
             try:
-                return RawConfigParser.get(self, macaddress, option)
+                return self.get(macaddress, option)
             except (NoSectionError, NoOptionError):
                 pass
         try:
-            return RawConfigParser.get(self, 'EyeFiServer', option)
+            return self.get('EyeFiServer', option)
         except (NoSectionError, NoOptionError):
             if default is None:
                 eyeFiLogger.error('You need to define key %s' \
@@ -793,7 +786,7 @@ class EyeFiConfig(RawConfigParser):
         return default
 
     def getboolean(self, section, option, default=None):
-        val = self.get(section, option, default)
+        val = self.get_key(section, option, default)
         if isinstance(val, bool):
             return val
         if val.lower() not in self._boolean_states:
@@ -806,7 +799,7 @@ class EyeFiConfig(RawConfigParser):
         Set global loglevel based on configuration
         """
         # (re)set logger verbosity level
-        loglevel = self.get(None, 'loglevel', 'DEBUG')
+        loglevel = self.get_key(None, 'loglevel', 'DEBUG')
         if loglevel not in ['DEBUG', 'INFO', 'WARN', 'WARNING', 'ERROR', 'FATAL']:
             eyeFiLogger.error('Cannot set new log level %s' % loglevel)
             raise StandardError('Error in conf file: Invalid loglevel')
@@ -822,7 +815,7 @@ class EyeFiConfig(RawConfigParser):
         If refenrence_date is not provided, %Y and such are removed, so that
         the result is suitable for temporary files.
         """
-        upload_dir = self.get(macaddress, 'upload_dir', '~/eyefi')
+        upload_dir = self.get_key(macaddress, 'upload_dir', '~/eyefi')
         upload_dir = os.path.expanduser(upload_dir) # expands ~
 
         if reference_date is None:
@@ -846,11 +839,11 @@ def main(options):
     # console based on the effective level of logging
     loggingformater = logging.Formatter(LOG_FORMAT)
     if not options.daemon:
-	consolehandler = logging.StreamHandler(sys.stderr)
-	# Set how both handlers will print the pretty log events
-	consolehandler.setFormatter(loggingformater)
-	# Append both handlers to the main Eye Fi Server logger
-	eyeFiLogger.addHandler(consolehandler)
+        consolehandler = logging.StreamHandler(sys.stderr)
+        # Set how both handlers will print the pretty log events
+        consolehandler.setFormatter(loggingformater)
+        # Append both handlers to the main Eye Fi Server logger
+        eyeFiLogger.addHandler(consolehandler)
     else:
         with open(options.pidfile, 'w') as f_out:
             eyeFiLogger.info('Creating pid file at %s' % options.pidfile)
@@ -871,6 +864,7 @@ def main(options):
 	eyefiserver.config = EyeFiConfig(options.conffiles)
 	eyeFiLogger.info("Eye-Fi server starts listening on port %s",
 			 SERVER_ADDRESS[1])
+        eyeFiLogger.info('Attempting to use %s for upload_key' % eyefiserver.config.get_key(None, 'upload_key'))
 	while True:
 	    try:
 		eyefiserver.serve_forever()
