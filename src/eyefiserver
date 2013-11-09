@@ -806,7 +806,7 @@ class EyeFiConfig(RawConfigParser):
         Set global loglevel based on configuration
         """
         # (re)set logger verbosity level
-        loglevel = self.get(None, 'loglevel', logging.DEBUG)
+        loglevel = self.get(None, 'loglevel', 'DEBUG')
         if loglevel not in ['DEBUG', 'INFO', 'WARN', 'WARNING', 'ERROR', 'FATAL']:
             eyeFiLogger.error('Cannot set new log level %s' % loglevl)
             raise StandardError('Error in conf file: Invalid loglevel')
