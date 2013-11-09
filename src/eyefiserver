@@ -35,7 +35,7 @@ import os
 import select
 import subprocess
 import signal
-from daemon import runner
+import daemon
 from StringIO import StringIO
 import hashlib
 import binascii
