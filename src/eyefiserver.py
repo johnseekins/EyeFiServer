@@ -806,9 +806,9 @@ class EyeFiConfig(RawConfigParser):
         Set global loglevel based on configuration
         """
         # (re)set logger verbosity level
-        loglevel = self.get(None, 'loglevel', logging.DEBUG)
+        loglevel = self.get(None, 'loglevel', 'DEBUG')
         if loglevel not in ['DEBUG', 'INFO', 'WARN', 'WARNING', 'ERROR', 'FATAL']:
-            eyeFiLogger.error('Cannot set new log level %s' % loglevl)
+            eyeFiLogger.error('Cannot set new log level %s' % loglevel)
             raise StandardError('Error in conf file: Invalid loglevel')
         loglevel = eval('logging.'+loglevel)
         eyeFiLogger.setLevel(loglevel)
@@ -851,6 +851,10 @@ def main(options):
 	consolehandler.setFormatter(loggingformater)
 	# Append both handlers to the main Eye Fi Server logger
 	eyeFiLogger.addHandler(consolehandler)
+    else:
+        with open(options.pidfile, 'w') as f_out:
+            eyeFiLogger.info('Creating pid file at %s' % options.pidfile)
+            f_out.write('%d' % os.getpid())
     # open file logging
     if options.logfile:
         filehandler = logging.FileHandler(options.logfile, "w", encoding=None)
@@ -892,7 +896,9 @@ def cli_opts():
     parser.add_argument('--log', '-l', dest='logfile',
         help='log to file')
     parser.add_argument('--daemon', '-d', action='store_true',
-        help='Daemonize!', default=False)
+        dest='daemon', help='Daemonize!', default=False)
+    parser.add_argument('--pidfile', '-p', dest='pidfile',
+        help='pid file location', default='/var/run/eyefiserver.pid')
     return parser.parse_args()
 
 if __name__ == '__main__':
