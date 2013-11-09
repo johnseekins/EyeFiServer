@@ -868,88 +868,75 @@ class EyeFiConfig(RawConfigParser):
             upload_dir = reference_date.strftime(upload_dir)
             return upload_dir
 
-class EyeFiRunner():
-    def run(self):
-        try:
-            # Create an instance of an HTTP server. Requests will be handled
-            # by the class EyeFiRequestHandler
-            eyefiserver = EyeFiServer(SERVER_ADDRESS, EyeFiRequestHandler)
-            eyefiserver.config = EyeFiConfig(options.conffiles)
 
-            eyeFiLogger.info("Eye-Fi server starts listening on port %s",
-                             SERVER_ADDRESS[1])
-            while True:
-                try:
-                    eyefiserver.serve_forever()
-                except select.error as err:
-                    if err.args[0] == 4: # system call interrupted by SIGHUP
-                        pass # ignore it
-                    else:
-                        raise
-        except KeyboardInterrupt:
-            eyeFiLogger.info("Eye-Fi server shutting down")
-            eyefiserver.socket.close()
-            eyefiserver.shutdown()
-            eyeFiLogger.info("Waiting for threads to finish.")
+def main(options):
+    """
+    Main function
+    """
 
-    def sighup_handler(self, signo, frm):
-        """
-        That function is called on SIGUP and reload the configuration files.
-        """
-        eyefiserver.config.read()
-        eyefiserver.config.setloglevel()
-        eyeFiLogger.info("Received SIGUP. Reloading config from %s",
-            eyefiserver.config.conffiles)
+    # Create two handlers. One to print to the log and one to print to the
+    # console based on the effective level of logging
+    loggingformater = logging.Formatter(LOG_FORMAT)
+    if not options.daemon:
+        consolehandler = logging.StreamHandler(sys.stderr)
+        # Set how both handlers will print the pretty log events
+        consolehandler.setFormatter(loggingformater)
+        # Append both handlers to the main Eye Fi Server logger
+        eyeFiLogger.addHandler(consolehandler)
+    # open file logging
+    if options.logfile:
+        filehandler = logging.FileHandler(options.logfile, "w", encoding=None)
+        filehandler.setFormatter(loggingformater)
+        eyeFiLogger.addHandler(filehandler)
 
-    def __init__(self, options):
-        signal.signal(signal.SIGHUP, self.sighup_handler)
-        """
-        Main function
-        """
+    # run webserver as www-data - cant get it working
+    #if config.get('EyeFiServer', 'user_id')!='':
+    #    os.setuid(config.getint('EyeFiServer', 'user_id'))
+    try:
+        # Create an instance of an HTTP server. Requests will be handled
+        # by the class EyeFiRequestHandler
+        eyefiserver = EyeFiServer(SERVER_ADDRESS, EyeFiRequestHandler)
+        eyefiserver.config = EyeFiConfig(options.conffiles)
 
-        # Create two handlers. One to print to the log and one to print to the
-        # console based on the effective level of logging
-        loggingformater = logging.Formatter(LOG_FORMAT)
-        # If we're forking the process, we really shouldn't be printing to stdout or stderr
-        if not options.daemon:
-            consolehandler = logging.StreamHandler(sys.stderr)
-            # Set how both handlers will print the pretty log events
-            consolehandler.setFormatter(loggingformater)
-            # Append both handlers to the main Eye Fi Server logger
-            eyeFiLogger.addHandler(consolehandler)
-        # open file logging
-        if options.logfile:
-            filehandler = logging.FileHandler(options.logfile, "w", encoding=None)
-            filehandler.setFormatter(loggingformater)
-            eyeFiLogger.addHandler(filehandler)
+        eyeFiLogger.info("Eye-Fi server starts listening on port %s",
+                         SERVER_ADDRESS[1])
+        while True:
+            try:
+                eyefiserver.serve_forever()
+            except select.error as err:
+                if err.args[0] == 4: # system call interrupted by SIGHUP
+                    pass # ignore it
+                else:
+                    raise
+    except KeyboardInterrupt:
+        eyeFiLogger.info("Eye-Fi server shutting down")
+        eyefiserver.socket.close()
+        eyefiserver.shutdown()
+        eyeFiLogger.info("Waiting for threads to finish.")
 
-        # run webserver as www-data - cant get it working
-        #if config.get('EyeFiServer', 'user_id')!='':
-        #    os.setuid(config.getint('EyeFiServer', 'user_id'))
 
 def cli_opts():
-    parser = argparse.ArgumentParser(usage='%prog [options]')
-    parser.add_argument('--conf',
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--conf', '-c',
         action='append', dest='conffiles', metavar='CONFFILE',
-        help='specific alternate location for configuration file. ' \
-           + 'default=%default',
+        help='specific alternate location for configuration file.',
         default=['/etc/eyefiserver.conf',
                  os.path.expanduser('~/eyefiserver.conf'),
                  '%s/eyefiserver.conf' % os.getcwd()])
-    parser.add_argument('--log', dest='logfile',
+    parser.add_argument('--log', '-l', dest='logfile',
         help='log to file')
     parser.add_argument('--daemon', '-d', action='store_true',
-        dest='daemon', help='daemonize.')
+        dest='daemon', help='daemonize.', default=False)
     return parser.parse_args()
 
 if __name__ == '__main__':
     options = cli_opts()
 
-    app = EyeFiRunner(options)
     if options.daemon:
-        daemon_runner = runner.DaemonRunner(app)
-        daemon_runner.do_action()
+        context = daemon.DaemonContext(working_directory=os.getcwd(), uid=os.getuid())
+        with context:
+            main(options)
     else:
-        EyeFiRunner.run()
+        main(options)
 
 # ex: expandtab tabstop=4 syntax=python
