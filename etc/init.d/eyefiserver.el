@@ -29,53 +29,54 @@
 DESC="EyeFiServer"
 NAME=eyefiserver
 LOGFILE=/var/log/$NAME.log
-EYEFIUSER=apache
-EYEFIGROUP=apache
 PIDFILE=/var/run/$NAME.pid
+LOCKFILE=/var/lock/subsys/$NAME
 SCRIPTNAME=/etc/init.d/$NAME
-PSNAME=python # name of the process
-DAEMONARGS="--log=${LOGFILE} -d"
-DAEMON="${PSNAME} /usr/local/bin/${NAME}"
+DAEMONARGS="--log=${LOGFILE} -d -p ${PIDFILE}"
+DAEMON="${PSNAME} /opt/EyeFiServer/${NAME}"
+FULLDAEMON="${DAEMON} ${DAEMONARGS}" 
 
 #
 #	Function that starts the daemon/service.
 #
 d_start() {
-	daemonize --pidfile $PIDFILE $DAEMON $DAEMONARGS
+	echo -n "Starting $DESC"
+	daemon --pidfile $PIDFILE $FULLDAEMON
+        RETVAL=$?
+        echo
+        [ $RETVAL -eq 0 ] && touch $LOCKFILE
+        return $RETVAL
 }
-
 
 #	Function that stops the daemon/service.
 #
 d_stop() {
-	killproc --pidfile $PIDFILE $DAEMON 
+	echo -n "Stopping $DESC"
+	killproc -p $PIDFILE $DAEMON
+        RETVAL=$?
+        echo
+        [ $RETVAL -eq 0 ] && rm -f $LOCKFILE
+        return $RETVAL
 }
 
 case "$1" in
   start)
-	echo -n "Starting $DESC"
 	d_start
-	echo "."
 	;;
   stop)
-	echo -n "Stopping $DESC"
 	d_stop
-	echo "."
-	;;
-  reload|force-reload)
-	echo -n "Reloading $DESC"
-	d_reload
-	echo "."
 	;;
   restart)
-	echo -n "Restarting $NAME"
+	echo "Restarting $DESC"
 	d_stop
 	sleep 1
 	d_start
-	echo "."
 	;;
+  status)
+        status -p $PIDFILE $DAEMON
+        ;;
   *)
-	echo "Usage: $SCRIPTNAME {start|stop|restart|reload|force-reload}" >&2
+	echo "Usage: $SCRIPTNAME {start|stop|restart|status}" >&2
 	exit 1
 	;;
 esac
