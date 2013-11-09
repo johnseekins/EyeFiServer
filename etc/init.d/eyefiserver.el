@@ -62,11 +62,6 @@ case "$1" in
 	d_stop
 	echo "."
 	;;
-  reload|force-reload)
-	echo -n "Reloading $DESC"
-	d_reload
-	echo "."
-	;;
   restart)
 	echo -n "Restarting $NAME"
 	d_stop
