@@ -9,7 +9,7 @@ This starts an HTTP server on port 59278 that will receive files.
 
 OPTIONS
   --help          Display a short usage help.
-  --confile file  Additional location for configuration files. Options are first read in /etc/eyefiserver.conf, then in ~/eyefiserver.conf. Any file name specified here will overwrite the values already parsed. That option might be used multiple times.
+  --conffile file  Additional location for configuration files. Options are first read in /etc/eyefiserver.conf, then in ~/eyefiserver.conf. Any file name specified here will overwrite the values already parsed. That option might be used multiple times.
   --log file      Log to file.
 
 FILES
