@@ -34,30 +34,22 @@ EYEFIGROUP=apache
 PIDFILE=/var/run/$NAME.pid
 SCRIPTNAME=/etc/init.d/$NAME
 PSNAME=python # name of the process
-DAEMONARGS="--log=${LOGFILE} -d "
+DAEMONARGS="--log=${LOGFILE} -d"
 DAEMON="${PSNAME} /usr/local/bin/${NAME}"
 
 #
 #	Function that starts the daemon/service.
 #
 d_start() {
-	daemonize --pidfile $PIDFILE $DAEMON $DAEMONARGS start
+	daemonize --pidfile $PIDFILE $DAEMON $DAEMONARGS
 }
 
 
 #	Function that stops the daemon/service.
 #
 d_stop() {
-	daemonize --pidfile $PIDFILE $DAEMON $DAEMONARGS stop
+	killproc --pidfile $PIDFILE $DAEMON 
 }
-
-#
-#	Function that sends a SIGHUP to the daemon/service.
-#
-#d_reload() {
-#	start-stop-daemon --stop --quiet --pidfile $PIDFILE \
-#		--name $PSNAME --signal 1
-#}
 
 case "$1" in
   start)

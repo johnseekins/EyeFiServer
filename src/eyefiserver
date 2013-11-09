@@ -77,11 +77,8 @@ LOG_FORMAT = '%(asctime)s %(levelname)s %(message)s'
 # So these errors are logged to stderr only, not in log files.
 # Prefer stderr for debugging
 
-
 # Create the main logger
 eyeFiLogger = logging.Logger("eyeFiLogger", logging.DEBUG)
-
-
 
 class IntegrityDigestFile(file):
     """
@@ -93,7 +90,6 @@ class IntegrityDigestFile(file):
         # Create an array of 2 byte integers
         self.concatenated_tcp_checksums = array.array('H')
         self.todo_buffer = '' # bytes that weren't used yet
-
 
     def seek(self, position, whence=0):
         assert whence == 0, \
@@ -111,7 +107,6 @@ class IntegrityDigestFile(file):
                 "Failed to read %s bytes" % readsize
             self._diggestpush(buf)
             lefttoread -= readsize
-
 
     @staticmethod
     def calculate_tcp_checksum(buf):
@@ -164,7 +159,6 @@ class IntegrityDigestFile(file):
         file.write(self, buf)
         self._diggestpush(buf)
 
-
     def getintegritydigest(self, uploadkey):
         """
         Returns Eye-Fi CRC value based on previous write()
@@ -187,8 +181,6 @@ class IntegrityDigestFile(file):
         # Hex encode the hash to obtain the final integrity digest
         return md5.hexdigest()
 
-
-
 class EyeFiContentHandler(xml.sax.handler.ContentHandler):
     "Eye Fi XML SAX ContentHandler"
 
@@ -202,7 +194,6 @@ class EyeFiContentHandler(xml.sax.handler.ContentHandler):
 
     def characters(self, content):
         self.extracted_elements[self.last_element_name] = content
-
 
 class EyeFiServer(SocketServer.ThreadingMixIn, BaseHTTPServer.HTTPServer):
     "Implements an EyeFi server"
@@ -218,7 +209,6 @@ class EyeFiServer(SocketServer.ThreadingMixIn, BaseHTTPServer.HTTPServer):
         # connection atempts.
         connection.settimeout(15)
         return connection, address
-
 
 def build_soap_response(actionname, items):
     """
@@ -254,7 +244,6 @@ def build_soap_response(actionname, items):
         item_element.appendChild(item_elementtext)
     return doc.toxml(encoding="UTF-8")
 
-
 class EyeFiSession:
     """
     Contains data for an HTTP session
@@ -278,7 +267,6 @@ class EyeFiSession:
         for ite in range(8):
             result += "%04x" % (0xffff * random.random())
         return result
-
 
     @staticmethod
     def _hexmd5(plain):
@@ -311,7 +299,6 @@ class EyeFiSession:
 
         return self._hexmd5(credentialstring)
 
-
     def getservercredential(self, config):
         """
         This is the GetPhotoStatus challenge:
@@ -326,11 +313,9 @@ class EyeFiSession:
 
         return self._hexmd5(credentialstring)
 
-
 class EyeFiRequestHandler(BaseHTTPRequestHandler):
     """This class is responsible for handling HTTP requests passed to it.
     It implements the common HTTP method do_POST()"""
-
 
     def __init__(self, *args, **kargs):
         # We need a way to force self.close_connection:
@@ -362,7 +347,6 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
             return form
         else:
             return {'SOAPENVELOPE': postdata}
-
 
     def do_POST(self):
         """
@@ -456,7 +440,6 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
 
         self.send_eyefi_response(response)
 
-
     def send_eyefi_response(self, response):
         """
         Sends the response text to the connection in HTTP.
@@ -490,12 +473,10 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
             self.wfile.write(response)
         self.wfile.flush()
 
-
     def markLastPhotoInRoll(self, soapdata):
         "Handles MarkLastPhotoInRoll action"
 
         return build_soap_response('MarkLastPhotoInRollResponse', [])
-
 
     def uploadPhoto(self, postdata_fragment, soapdata, tardata):
         """
@@ -560,8 +541,6 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
 
         tarfilehandle.write(tardata)
         tarsize += len(tardata)
-
-
 
         # Read remaining POST data
         received_length = len(postdata_fragment) # size already read
@@ -674,7 +653,6 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
                     os.remove(tarpath)
                     return uploadphoto_response('false')
 
-
         imagetarfile = tarfile.open(tarpath)
 
         # Get date_from_file flag
@@ -721,7 +699,6 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
 
         return uploadphoto_response('true')
 
-
     def getPhotoStatus(self, soapdata):
         "Handles GetPhotoStatus action"
 
@@ -763,7 +740,6 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
             ('offset', offset), # How many bytes have already been transfered
             ])
 
-
     def startSession(self, soapdata):
         "Handle startSession requests"
         macaddress = soapdata['macaddress']
@@ -783,7 +759,6 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
             ('upsyncallowed', 'false'),
             ])
 
-
 class EyeFiConfig(RawConfigParser):
     """
     Helper wraper around ConfigParser.RawConfigParser
@@ -796,13 +771,11 @@ class EyeFiConfig(RawConfigParser):
         self.setloglevel() # set log level
         eyeFiLogger.info("Read config from %s", self.conffiles)
 
-
     def read(self, conffiles=None):
         if conffiles is not None:
             # changing conffiles list
             self.conffiles = conffiles
         RawConfigParser.read(self, self.conffiles)
-
 
     def get(self, macaddress, option, default=None):
         if macaddress:
@@ -819,7 +792,6 @@ class EyeFiConfig(RawConfigParser):
                 raise
         return default
 
-
     def getboolean(self, section, option, default=None):
         val = self.get(section, option, default)
         if isinstance(val, bool):
@@ -827,7 +799,6 @@ class EyeFiConfig(RawConfigParser):
         if val.lower() not in self._boolean_states:
             raise ValueError, 'Not a boolean: %s' % val
         return self._boolean_states[val.lower()]
-
 
     def setloglevel(self):
         """
@@ -870,7 +841,6 @@ def main(options):
     """
     Main function
     """
-    
     # Create two handlers. One to print to the log and one to print to the
     # console based on the effective level of logging
     loggingformater = logging.Formatter(LOG_FORMAT)
@@ -894,7 +864,6 @@ def main(options):
 	# by the class EyeFiRequestHandler
 	eyefiserver = EyeFiServer(SERVER_ADDRESS, EyeFiRequestHandler)
 	eyefiserver.config = EyeFiConfig(options.conffiles)
-
 	eyeFiLogger.info("Eye-Fi server starts listening on port %s",
 			 SERVER_ADDRESS[1])
 	while True:
