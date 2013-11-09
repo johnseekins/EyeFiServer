@@ -818,7 +818,7 @@ class EyeFiConfig(RawConfigParser):
             if default is None:
                 eyeFiLogger.error('You need to define key %s' \
                     ' in your config file. See eyefiserver.conf(5)', option)
-                raise
+                raise StandardError('Undefined key in eyefiserver.conf: %s' % option)
         return default
 
 
@@ -827,6 +827,7 @@ class EyeFiConfig(RawConfigParser):
         if isinstance(val, bool):
             return val
         if val.lower() not in self._boolean_states:
+            eyeFiLogger.error('Not a boolean: %s' % val)
             raise ValueError, 'Not a boolean: %s' % val
         return self._boolean_states[val.lower()]
 
@@ -837,9 +838,9 @@ class EyeFiConfig(RawConfigParser):
         """
         # (re)set logger verbosity level
         loglevel = self.get(None, 'loglevel', 'DEBUG')
-        assert loglevel in \
-                ('DEBUG', 'INFO', 'WARN', 'WARNING', 'ERROR', 'FATAL'), \
-            'Error in conf file: Invalid loglevel'
+        if loglevel not in ['DEBUG', 'INFO', 'WARN', 'WARNING', 'ERROR', 'FATAL']:
+            eyeFiLogger.error('Cannot set new log level %s' % loglevl)
+            raise StandardError('Error in conf file: Invalid loglevel')
         loglevel = eval('logging.'+loglevel)
         eyeFiLogger.setLevel(loglevel)
 
