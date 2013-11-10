@@ -56,6 +56,7 @@ except:
     sys.exit(1)
 import cgi
 import logging
+import logging.handlers
 import socket
 import random
 import xml.sax
@@ -890,7 +891,7 @@ def main(options):
             f_out.write('%d' % os.getpid())
     # open file logging
     if options.logfile:
-        filehandler = logging.FileHandler(options.logfile, "w", encoding=None)
+        filehandler = logging.handlers.RotatingFileHandler(options.logfile, maxBytes=2000000, backupCount=2)
         filehandler.setFormatter(loggingformater)
         eyeFiLogger.addHandler(filehandler)
 
