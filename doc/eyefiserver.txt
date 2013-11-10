@@ -11,10 +11,14 @@ OPTIONS
   --help          Display a short usage help.
   --conffile file  Additional location for configuration files. Options are first read in /etc/eyefiserver.conf, then in ~/eyefiserver.conf. Any file name specified here will overwrite the values already parsed. That option might be used multiple times.
   --log file      Log to file.
+  --daemon, -d          Daemonize!
+  --pidfile PIDFILE, -p PIDFILE
+                        pid file location
 
 FILES
 - /etc/eyefiserver.conf
 - ~/eyefiserver.conf
+- ${CWD}/eyefiserver.conf
 - /var/log/eyefiserver.log
 
 AUTHORS
