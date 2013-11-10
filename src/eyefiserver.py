@@ -33,7 +33,11 @@ import os
 import select
 import subprocess
 import signal
-import daemon 
+try:
+    import daemon
+except:
+    print('This tool requires the python-daemon package!')
+    sys.exit(1)
 from StringIO import StringIO
 import hashlib
 import binascii
@@ -43,7 +47,11 @@ import tarfile
 from datetime import datetime, timedelta
 from ConfigParser import RawConfigParser, NoSectionError, NoOptionError
 import re
-import argparse
+try:
+    import argparse
+except:
+    print('This tool requires python-argparse to function!')
+    sys.exit(1)
 import cgi
 import logging
 import socket
