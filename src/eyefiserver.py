@@ -54,6 +54,7 @@ except:
     sys.exit(1)
 import cgi
 import logging
+import logging.handlers
 import socket
 import random
 import xml.sax
@@ -858,9 +859,9 @@ def main(options):
             f_out.write('%d' % os.getpid())
     # open file logging
     if options.logfile:
-        filehandler = logging.FileHandler(options.logfile, "w", encoding=None)
-        filehandler.setFormatter(loggingformater)
-        eyeFiLogger.addHandler(filehandler)
+        hdlr = logging.handlers.RotatingFileHandler(options.logfile, maxBytes=2000000, backupCount=2)
+        hdlr.setFormatter(loggingformater)
+        eyeFiLogger.addHandler(hdlr)
     
     # run webserver as www-data - cant get it working
     #if config.get('EyeFiServer', 'user_id')!='':
@@ -886,6 +887,7 @@ def main(options):
 	eyefiserver.socket.close()
 	eyefiserver.shutdown()
 	eyeFiLogger.info("Waiting for threads to finish.")
+    hdlr.close()
 
 def cli_opts():
     parser = argparse.ArgumentParser()
