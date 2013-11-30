@@ -930,7 +930,8 @@ def cli_opts():
         help='specific alternate location for configuration file.',
         default=['/etc/eyefiserver.conf',
                  os.path.expanduser('~/eyefiserver.conf'),
-                 '%s/eyefiserver.conf' % os.getcwd()])
+                 '%s/eyefiserver.conf' % os.getcwd(),
+                 '%s/eyefiserver.conf' % sys.argv[0].rsplit('/', 1)[0]])
     parser.add_argument('--log', '-l', dest='logfile',
         help='log to file')
     parser.add_argument('--daemon', '-d', action='store_true',
