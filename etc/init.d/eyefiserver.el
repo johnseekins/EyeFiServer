@@ -52,7 +52,7 @@ d_start() {
 #
 d_stop() {
 	echo -n "Stopping $DESC"
-	killproc -p $PIDFILE $DAEMON
+	killproc -p $PIDFILE $DAEMON SIGHUP
         RETVAL=$?
         echo
         [ $RETVAL -eq 0 ] && rm -f $LOCKFILE
