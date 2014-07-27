@@ -677,7 +677,7 @@ class EyeFiRequestHandler(BaseHTTPRequestHandler):
         imagetarfile = tarfile.open(tarpath)
 
         # Get date_from_file flag
-        use_date_from_file = self.server.config.get(macaddress,
+        use_date_from_file = self.server.config.getboolean(macaddress,
             'use_date_from_file', False)
 
         # if needed, get reference date from the tar fragment
