@@ -26,7 +26,7 @@ You need to copy the files in the right place.
 
 Optionally add stuff to your start-stop sequence. On debian/ubuntu, use
 update-rc.d:
-    sudo update-rc.d eyefiserver defaults 98 02
+    sudo update-rc.d eyefiserver defaults
 
 et voilà.
 
