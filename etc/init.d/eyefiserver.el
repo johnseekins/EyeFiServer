@@ -33,7 +33,7 @@ PIDFILE=/var/run/$NAME.pid
 LOCKFILE=/var/lock/subsys/$NAME
 SCRIPTNAME=/etc/init.d/$NAME
 DAEMONARGS="--log=${LOGFILE} -d -p ${PIDFILE}"
-DAEMON="${PSNAME} /opt/EyeFiServer/${NAME}.py"
+DAEMON="${PSNAME} /opt/EyeFiServer/${NAME}"
 FULLDAEMON="${DAEMON} ${DAEMONARGS}" 
 
 #
